@@ -1,0 +1,183 @@
+---
+title: 6. 模块
+description: _
+---
+
+## 一、模块是什么
+
+模块就是一个 `.py` 文件，存放函数、变量、类，方便复用与维护。
+
+- 文件名 = 模块名（不带 `.py`）
+- 模块有独立命名空间，不会污染全局
+
+### 示例：fibo.py（斐波那契模块）
+
+```python
+# fibo.py
+def fib(n):
+    a, b = 0, 1
+    while a < n:
+        print(a, end=' ')
+        a, b = b, a + b
+    print()
+
+def fib2(n):
+    result = []
+    a, b = 0, 1
+    while a < n:
+        result.append(a)
+        a, b = b, a + b
+    return result
+```
+
+## 二、导入模块的 5 种方式
+
+### 1. 基础导入
+
+```python
+import fibo
+fibo.fib(100)   # 调用
+fibo.fib2(100)
+```
+
+### 2. 导入指定成员
+
+```python
+from fibo import fib, fib2
+fib(100)  # 直接用
+```
+
+### 3. 导入并别名（推荐，避免冲突）
+
+```python
+import fibo as fb
+from fibo import fib as fibonacci
+fb.fib(100)
+fibonacci(100)
+```
+
+### 4. 导入全部（不推荐）
+
+```python
+from fibo import *  # 导入所有非 _ 开头名称，易覆盖、可读性差
+```
+
+### 5. 重新加载（修改后生效）
+
+```python
+import importlib
+importlib.reload(fibo)
+```
+
+## 三、模块可直接当脚本运行
+
+用 `__name__ == '__main__'` 判断是否为主执行文件，前端类似「入口文件判断」。
+
+```python
+# fibo.py 末尾添加
+if __name__ == '__main__':
+    import sys
+    fib(int(sys.argv[1]))
+```
+
+运行：
+
+```bash
+python fibo.py 50
+```
+
+## 四、模块搜索路径
+
+Python 按以下顺序找模块：
+
+1. 脚本当前目录
+2. 环境变量 `PYTHONPATH`
+3. 标准库与 `site-packages`
+
+可手动添加路径：
+
+```python
+import sys
+sys.path.append('/your/path')
+```
+
+## 五、编译缓存 `.pyc`
+
+- 缓存目录：`__pycache__/模块名.版本.pyc`
+- 自动对比源码时间戳，过期重编译
+- 只加快**加载速度**，不加快运行速度
+
+## 六、dir() 函数：查看模块成员
+
+```python
+import fibo
+print(dir(fibo))  # 列出模块里的函数、变量等
+```
+
+## 七、包（Package）
+
+包 = 带 `__init__.py` 的文件夹，用来组织多层模块（类似前端组件库）。
+
+### 典型包结构
+
+```
+sound/             # 顶层包
+  __init__.py      # 必须有，标识为包
+  formats/         # 子包
+    __init__.py
+    wavread.py
+  effects/
+    __init__.py
+    echo.py
+```
+
+### 导入包内模块
+
+```python
+# 完整路径导入
+import sound.effects.echo
+sound.effects.echo.echofilter()
+
+# 直接导入子模块
+from sound.effects import echo
+echo.echofilter()
+
+# 直接导入函数
+from sound.effects.echo import echofilter
+echofilter()
+```
+
+## 八、从包导入 \*
+
+需在 `__init__.py` 定义 `__all__` 白名单：
+
+```python
+# sound/effects/__init__.py
+__all__ = ["echo", "surround", "reverse"]
+```
+
+```python
+from sound.effects import *  # 只导入 __all__ 里的模块
+```
+
+## 九、相对导入（包内用）
+
+用 `.` 表示当前目录，`..` 表示上一级目录。
+
+```python
+# 在 sound/effects/surround.py 中
+from . import echo        # 同级
+from .. import formats    # 上一级
+from ..filters import equalizer  # 上一级的 filters 包
+```
+
+> 注意：**主程序文件不能用相对导入**，必须用绝对导入。
+
+## 十、核心要点速记
+
+1. 模块 = `.py` 文件，包 = 带 `__init__.py` 的文件夹
+2. 优先用 `import 模块 as 别名` / `from 模块 import 成员`
+3. 少用 `import *`，可读性差、易覆盖
+4. 用 `if __name__ == '__main__'` 做入口与测试
+5. 相对导入只适合包内模块，主文件不用
+6. `sys.path` 控制模块搜索路径

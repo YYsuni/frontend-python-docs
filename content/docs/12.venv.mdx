@@ -1,0 +1,98 @@
+---
+title: 12. 虚拟环境和包
+description: _
+---
+
+## 一、为什么要用虚拟环境
+
+- 不同项目依赖**不同版本包**，避免冲突
+- 让项目依赖**独立、可复现**
+- 前端类比：类似 `node_modules` + `.nvm` 的作用
+
+## 二、创建虚拟环境
+
+```bash
+# 创建（推荐目录名 .venv，隐藏且不冲突）
+python -m venv .venv
+```
+
+## 三、激活虚拟环境
+
+### Windows（cmd / PowerShell）
+
+```cmd
+.venv\Scripts\activate
+```
+
+### macOS / Linux
+
+```bash
+source .venv/bin/activate
+```
+
+激活成功：终端前缀出现 `(.venv)`
+
+## 四、退出虚拟环境
+
+```bash
+deactivate
+```
+
+## 五、pip 包管理（常用必背）
+
+### 安装包
+
+```bash
+# 最新版
+python -m pip install requests
+
+# 指定版本
+python -m pip install requests==2.6.0
+```
+
+### 升级包
+
+```bash
+python -m pip install --upgrade requests
+```
+
+### 卸载包
+
+```bash
+python -m pip uninstall requests
+```
+
+### 查看已安装包
+
+```bash
+python -m pip list
+```
+
+### 查看包详情
+
+```bash
+python -m pip show requests
+```
+
+## 六、依赖导出与恢复（前端 package.json 等价）
+
+### 导出依赖到 requirements.txt
+
+```bash
+python -m pip freeze > requirements.txt
+```
+
+### 从文件安装所有依赖
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+## 七、前端快速对照
+
+| 功能     | Python           | 前端 Node.js   |
+| :------- | :--------------- | :------------- |
+| 环境隔离 | venv             | nvm / 项目独立 |
+| 包安装   | pip install      | npm install    |
+| 依赖清单 | requirements.txt | package.json   |
+| 恢复环境 | pip install -r   | npm install    |

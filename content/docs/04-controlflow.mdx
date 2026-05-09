@@ -1,0 +1,269 @@
+---
+title: 4. 更多控制流工具
+description: _
+---
+
+## 4.1 if 语句
+
+- `if/elif/else` 可替代 `switch/case`
+- `elif` = else if，减少缩进
+
+```python
+x = int(input("输入整数："))
+if x < 0:
+    print("负数改为0")
+    x = 0
+elif x == 0:
+    print("零")
+elif x == 1:
+    print("单值")
+else:
+    print("大于1")
+```
+
+---
+
+## 4.2 for 语句
+
+- 直接**迭代序列**（列表/字符串），不写自增
+- 迭代时修改原集合：迭代副本或新建集合
+
+```python
+# 基础迭代
+words = ["cat", "window", "defenestrate"]
+for w in words:
+    print(w, len(w))
+
+# 安全迭代字典（迭代副本）
+users = {"Hans": "active", "景太郎": "active"}
+for user, status in users.copy().items():
+    if status == "inactive":
+        del users[user]
+```
+
+---
+
+## 4.3 range() 函数
+
+- 生成等差数列，**左闭右开**
+- 惰性生成（节省内存），不是真实列表
+
+```python
+# 基础用法
+list(range(5))        # [0,1,2,3,4]
+list(range(5,10))    # [5,6,7,8,9]
+list(range(0,10,3))  # [0,3,6,9]
+
+# 按索引迭代
+a = ["Mary", "had", "a", "lamb"]
+for i in range(len(a)):
+    print(i, a[i])
+```
+
+---
+
+## 4.4 break / continue
+
+- `break`：跳出**最近一层**循环
+- `continue`：直接进入**下一次迭代**
+
+```python
+# break：找因数
+for n in range(2,10):
+    for x in range(2,n):
+        if n % x == 0:
+            print(f"{n}={x}*{n//x}")
+            break
+
+# continue：奇偶判断
+for num in range(2,10):
+    if num % 2 == 0:
+        print(f"偶数 {num}")
+        continue
+    print(f"奇数 {num}")
+```
+
+---
+
+## 4.5 循环的 else
+
+- 循环**正常结束**（未被 break）才执行
+- else 属于**循环**，不是 if
+
+```python
+# 找质数
+for n in range(2,10):
+    for x in range(2,n):
+        if n % x == 0:
+            print(n, "非质数")
+            break
+    else:
+        print(n, "是质数")
+```
+
+---
+
+## 4.6 pass 语句
+
+- 占位符，语法需要但**不执行**任何操作
+
+```python
+# 空类/空函数占位
+class MyClass:
+    pass
+
+def todo():
+    pass  # 待实现
+```
+
+---
+
+## 4.7 match 语句（模式匹配）
+
+- Python 版**增强 switch**，支持解构、类、条件
+- `case _`：通配符（必匹配）
+
+```python
+# 基础匹配
+def http_error(status):
+    match status:
+        case 400: return "请求错误"
+        case 404: return "未找到"
+        case 401 | 403: return "无权限"
+        case _: return "未知错误"
+
+# 元组解构
+point = (0, 5)
+match point:
+    case (0,0): print("原点")
+    case (0,y): print(f"Y={y}")
+    case (x,y): print(f"X={x},Y={y}")
+```
+
+---
+
+## 4.8 定义函数
+
+- `def` 定义，缩进为函数体
+- 无 return 默认返回 `None`
+- 文档字符串 `"""说明"""`
+
+```python
+# 输出斐波那契
+def fib(n):
+    """输出小于n的斐波那契数列"""
+    a, b = 0, 1
+    while a < n:
+        print(a, end=" ")
+        a, b = b, a+b
+    print()
+
+fib(2000)
+
+# 返回列表版
+def fib2(n):
+    result = []
+    a, b = 0, 1
+    while a < n:
+        result.append(a)
+        a, b = b, a+b
+    return result
+print(fib2(100))
+```
+
+---
+
+## 4.9 函数高级用法
+
+### 4.9.1 默认参数
+
+- 默认值**只计算一次**
+- 可变默认值（列表/字典）需用 `None` 初始化
+
+```python
+# 正确写法（避免共享默认值）
+def f(a, L=None):
+    if L is None:
+        L = []
+    L.append(a)
+    return L
+
+print(f(1))  # [1]
+print(f(2))  # [2]
+```
+
+### 4.9.2 关键字参数
+
+- `key=value` 传参，顺序无关
+- 位置参数必须在关键字参数前
+
+```python
+def parrot(voltage, state="stiff", action="voom"):
+    print(voltage, state, action)
+
+parrot(1000)
+parrot(voltage=1000, action="VOOOOOM")
+```
+
+### 4.9.3 特殊参数（/ 与 \*）
+
+- `/` 前：**仅限位置**
+- `*` 后：**仅限关键字**
+
+```python
+def f(pos1, /, pos_kwd, *, kwd1):
+    print(pos1, pos_kwd, kwd1)
+
+f(1, 2, kwd1=3)  # 正确
+```
+
+### 4.9.4 任意参数
+
+- `*args`：位置参数打包成**元组**
+- `**kwargs`：关键字参数打包成**字典**
+
+```python
+def concat(*args, sep="/"):
+    return sep.join(args)
+
+print(concat("a","b","c"))         # a/b/c
+print(concat("a","b","c", sep=".")) # a.b.c
+```
+
+### 4.9.5 解包参数
+
+- `*`：解包列表/元组
+- `**`：解包字典为关键字参数
+
+```python
+args = [3,6]
+list(range(*args))  # range(3,6)
+
+d = {"voltage": 1000}
+parrot(**d)
+```
+
+### 4.9.6 Lambda 匿名函数
+
+- 单行函数，适合**简单回调/排序 key**
+
+```python
+add = lambda a,b: a+b
+print(add(2,3))  # 5
+
+# 排序用
+pairs = [(1,"one"),(2,"two")]
+pairs.sort(key=lambda x: x[1])
+```
+
+---
+
+## 4.10 编码风格（PEP8 核心）
+
+1. 缩进用 **4 空格**，不用 Tab
+2. 一行**≤79 字符**
+3. 运算符/逗号后加空格：`a = 1 + 2`
+4. 函数：`snake_case`；类：`UpperCamelCase`
+5. 必写**文档字符串**
+
+---
