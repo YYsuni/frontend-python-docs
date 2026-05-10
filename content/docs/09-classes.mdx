@@ -12,11 +12,13 @@ description: 命名空间与作用域、实例/类属性、方法绑定、继承
 
 ---
 
-## 9.2 命名空间与作用域（复习）
+## 9.2 命名空间与作用域
 
 - **LEGB**：Local → Enclosing → Global → Builtins。
 - `global`：绑定**模块级**名字。
 - `nonlocal`：写外层**函数**的名字。
+
+二者都是声明「赋值写到哪」：`global` → 模块顶层，`nonlocal` → 外层函数的局部变量。
 
 ```python
 def scope_test():
@@ -70,6 +72,8 @@ print(d2.tricks)  # []
 ```
 
 **反模式**：`tricks: list[str] = []` 写在类体上 → 所有实例共享同一张表。
+
+> 反模式（anti-pattern）指的是：看起来很常见、甚至被随手写出来的写法，但在该场景下会引出可靠性与维护上的问题；
 
 ### 调用机制
 
@@ -126,6 +130,14 @@ class Point:
         return abs(a.x - b.x) + abs(a.y - b.y)
 ```
 
+注解里的 `"Point"` 是**带引号的类型注解**（前向引用）：对类型检查器来说仍然表示 **类 `Point`**，不是「字符串类型」。类体里尚未结束定义时就能引用自身，所以常见这种写法。
+
+**`@classmethod`**：第一个参数是**类本身**（约定写 `cls`）。上面 `origin` 用 `cls(0, 0)` 创建实例，子类继承时仍会生成**子类**的实例。常见用途：**备用构造函数**、按类配置生成对象。
+
+**`@staticmethod`**：解释器**不**自动塞 `self` 或 `cls`；只是挂在类名下的普通函数，调用写成 `Point.manhattan(a, b)`。实例若需要，由**参数显式传入**（如上例的 `a`、`b`），而不是靠绑定到「当前对象」。
+
+**对照前端：**`classmethod` ≈ 静态方法里仍能拿到「构造函数」（类似工厂里用 `this` 指向派生类 ctor 的场景）；`staticmethod` ≈ **挂在类/对象上的纯函数**，只为归类命名空间。
+
 ---
 
 ## 9.6 继承与 `super()`
@@ -153,9 +165,11 @@ class Dog2(Animal2):
 
 
 cat = Cat()
-print(isinstance(cat, Cat), isinstance(cat, Animal))
-print(issubclass(Cat, Animal))
+print(isinstance(cat, Cat), isinstance(cat, Animal))  # True True
+print(issubclass(Cat, Animal))  # True
 ```
+
+`isinstance(obj, Cls)`：判断**某个对象**是不是 `Cls` 的实例（沿继承也算）。`issubclass(A, B)`：判断**类 A** 是不是类 **B** 的子类（或同一类）；两个参数都是**类型**，不能把实例当作第一个参数。
 
 ### MRO（C3）
 
@@ -181,6 +195,8 @@ d = D()
 print(d.tag)  # 跟 MRO：先到 B
 ```
 
+多重继承里常见「菱形」：`B`、`C` 同继承 `A`，`D` 再继承 `B`、`C`。**MRO**（方法解析顺序，由 **C3** 线性化得到）记在 `D.__mro__` 里。解析实例属性（如 `tag`）时沿这条链从左到右找第一个定义，故 `d.tag` 为 `"B"`（`B` 排在 `C` 前）。
+
 ---
 
 ## 9.7 「私有」与名称改写
@@ -205,6 +221,8 @@ m = Mapping([1, 2, 3])
 
 ## 9.8 迭代器与生成器
 
+下面两段都在做**同一件事**：按索引从尾到头遍历字符串，产出 `'f','l','o','g'`。上一段是**手写迭代器协议**（`__iter__` / `__next__`）；下一段是**生成器函数**（`yield`），语义等价、代码更短。
+
 ```python
 class Reverse:
     def __init__(self, data: str) -> None:
@@ -221,34 +239,58 @@ class Reverse:
         return self.data[self.index]
 
 
+print(list(Reverse("golf")))  # ['f', 'l', 'o', 'g']
+
+
 def reverse_gen(data: str):
     for i in range(len(data) - 1, -1, -1):
         yield data[i]
 
 
-print(list(reverse_gen("golf")))
-print(sum(x * y for x, y in zip([10, 20], [1, 2])))
+print(list(reverse_gen("golf")))  # ['f', 'l', 'o', 'g']
 ```
 
 ---
 
 ## 9.9 `dataclass`（3.7+，工程常用）
 
-比手写 `__init__`/`__repr__` 省事，**不等于** TypeScript 接口——运行期仍可变。
+存几个字段的类，手写要重复 `__init__` / `__repr__`。**`@dataclass`**：按 `id: int` 这类注解自动生成构造和可读 `print`。**`slots=True`** 可选：只允许声明过的属性、略省内存；初学可省略。
 
 ```python
 from dataclasses import dataclass
 
 
-@dataclass(slots=True)  # slots：省内存 + 限制随意挂属性
+@dataclass(slots=True)
 class User:
     id: int
     name: str
 
 
 u = User(1, "Ada")
-print(u)
+print(u)  # User(id=1, name='Ada')
 ```
+
+仅有注解、或手写构造但没写「打印格式」时：
+
+```python
+class OnlyAnnot:
+    id: int
+    name: str
+
+
+# OnlyAnnot(1, "Ada")  # TypeError：注解不会自动生成 __init__，不能这样构造
+
+
+class Handwritten:
+    def __init__(self, id: int, name: str) -> None:
+        self.id = id
+        self.name = name
+
+
+print(Handwritten(1, "Ada"))  # 默认：<__main__.Handwritten object at 0x...>，看不到 id/name
+```
+
+说明：`OnlyAnnot` 那种写法**没有** `@dataclass` 时，类体里的 `id: int` 只是标注，**不会**帮你写出构造函数，也就没法用位置参数直接构造。`Handwritten` 虽能 `print`，但用的是对象默认展示，**不含字段内容**；需要可读字段时要么手写 `__repr__`，要么用上面的 `@dataclass`。
 
 ---
 

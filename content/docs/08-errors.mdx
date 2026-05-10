@@ -57,6 +57,8 @@ def read_int_header(path: str) -> int:
 
 ## 8.3 `raise` 与 `from`（异常链）
 
+`raise` ≈ 前端的 **`throw`**：主动抛错，交给 `try/except`（类似 `try/catch`）或继续向外冒泡。`except` 里单独写 `raise` ≈ **`throw err`**，原样再抛。
+
 ```python
 try:
     open("配置文件.ini", encoding="utf-8")
@@ -64,7 +66,7 @@ except OSError as exc:
     raise RuntimeError("无法加载配置") from exc
 ```
 
-`raise ... from None`：隐藏链（库边界偶尔用；排障时更痛）。
+`raise ... from exc` ≈ **`throw new Error("无法加载配置", { cause: exc })`**（把底层错误挂到 `cause`，栈/日志里能串起来）。`raise ... from None` ≈ **故意不传 `cause`**，对外只暴露上层文案（排障信息会变少）。
 
 ---
 
@@ -114,6 +116,8 @@ except* ValueError as eg:
 ---
 
 ## 8.7 `finally` 与 `return`（隐蔽坑）
+
+在 Python 里，若 finally 里执行了 return，会取代 try（以及 except）里的返回值
 
 ```python
 def confusing() -> int:
