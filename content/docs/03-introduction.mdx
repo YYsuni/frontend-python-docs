@@ -123,3 +123,19 @@ print(a is b)  # False（两个独立 list 对象）
 | 模板字符串           | **f-string**：`f"{x=}"`          |
 
 **权威延伸**：[3. An Informal Introduction to Python](https://docs.python.org/zh-cn/3/tutorial/introduction.html)
+
+---
+
+## 3.7 JS 基本类型与 Python 对照
+
+JS 里常说的「基本类型」是语言内建的**原子值**；Python 没有同一套「primitive / object」二分（`int`、`str` 等也是对象），但心智模型上可以这样对齐。
+
+| JS（基本类型） | Python 里接近什么 | 要点                                                                                                                              |
+| -------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `undefined`    | 无直接对应        | 未赋名的变量读不到（`NameError`）；缺省参数、缺键多用 `None` 或抛错，语义和 `undefined` 不完全一样。                              |
+| `null`         | `None`            | 单例；判空写 `x is None`。                                                                                                        |
+| `boolean`      | `bool`            | `True` / `False`；`bool` 是 `int` 的子类（`True == 1` 为真，但别依赖这种写法）。                                                  |
+| `number`       | `int`、`float`    | JS 一个 `number` 包 IEEE 754 双精度；Python 整数任意精度，与 `float` 分开；没有 `NaN` / `Infinity` 字面量，用 `float('nan')` 等。 |
+| `bigint`       | `int`             | 大整数在 Python 里仍是普通 `int`，无需后缀。                                                                                      |
+| `string`       | `str`             | 不可变 Unicode 文本；无「字符类型」，单字符也是长度为 1 的 `str`。                                                                |
+| `symbol`       | 无内置对应        | 需要「唯一键」时常用 `enum`、对象身份或字典里自建哨兵对象。                                                                       |

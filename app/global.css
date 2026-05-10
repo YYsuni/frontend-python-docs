@@ -16,7 +16,23 @@ html {
 
 	.prose :where(h2):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
 		font-size: 1.375rem;
-		margin-top: 2rem;
+		margin-top: 1rem;
 		margin-bottom: 1rem;
+	}
+	.prose :where(h2):not(:where([class~='not-prose'], [class~='not-prose'] *)):not(:first-child) {
+		margin-top: 4rem;
+	}
+
+	.prose :where(h3):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+		font-size: 1.15rem;
+		margin-top: 2rem;
+		margin-bottom: 0.5rem;
+		font-weight: 600;
+
+		&::before {
+			content: '#';
+			margin-right: 0.5rem;
+			color: #999;
+		}
 	}
 }
