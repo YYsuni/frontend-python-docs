@@ -1,16 +1,43 @@
 ---
 title: Python 教程
-description: 适合前端宝宝体质的 Python 教程
+description: 面向中高级前端的 Python 精简教程：对齐 JS/TS 心智模型，便于速学与日常速查，并链接官方深度文档。
 ---
 
-Python 是一门易于学习、功能强大的编程语言。它提供了高效的高级数据结构，还能简单有效地面向对象编程。Python 优雅的语法和动态类型以及解释型语言的本质，使它成为多数平台上写脚本和快速开发应用的理想语言。
+本系列是 [Python 官方教程](https://docs.python.org/zh-cn/3/tutorial/) 的压缩改写，预设读者**已经熟悉 JavaScript/TypeScript**（以及常见工程化工具）。目标不是替代官方文档，而是让你尽快建立心理模型：哪些和前端像、哪些是 Python 特有的坑、日常写脚本 / 小工具时该查什么。
 
-Python 官网（https://www.python.org/）上免费提供了 Python 解释器和扩展的标准库，包括源码和适用于各操作系统的机器码形式，并可自由地分发。Python 官网还包含许多免费的第三方 Python 模块、程序和工具发布包及文档链接。
+## 你会学到什么
 
-Python 解释器易于扩展，使用 C 或 C++（或其他 C 能调用的语言）即可为 Python 扩展新功能和数据类型。Python 也可用作定制软件中的扩展程序语言。
+- **运行时与工程**：解释器、`sys.argv`、模块 / 包、`venv` 与依赖锁定的心智（可对标 Node、npm、ESM）。
+- **语言核心**：缩进块、可变性、引用与拷贝、迭代协议、异常与资源管理。
+- **标准库速查**：文件与 JSON、`pathlib`、`argparse`、`datetime` 等高频模块。
 
-本教程只是简单介绍了 Python 语言概念和功能。读者在阅读本教程时最好使用 Python 解释器以便随时动手练习。本教程中的所有示例都是相互独立的并可离线阅读。
+## 推荐阅读方式
 
-标准库与模块的内容详见 [Python 标准库](https://docs.python.org/zh-cn/3.12/library/index.html#library-index)。[Python 语言参考手册](https://docs.python.org/zh-cn/3.12/reference/index.html#reference-index) 是更正规的语言定义。如要编写 C 或 C++ 扩展请参考 [扩展和嵌入 Python 解释器](https://docs.python.org/zh-cn/3.12/extending/index.html#extending-index) 和 [Python/C API 参考手册](https://docs.python.org/zh-cn/3.12/c-api/index.html#c-api-index)。此外，深入讲解 Python 的书籍也有很多。
+1. 按章节顺序扫一遍，在本地用 `python -m venv .venv` 建环境，边读边在 REPL 里试。
+2. 把「前端对照」当成锚点：先建立映射，再记 Python 独有规则。
+3. 需要细节时，直接跳到各章末尾的权威链接（语言参考、标准库索引）。
 
-本教程对每一个功能的介绍并不完整，甚至没有涉及全部常用功能，只是介绍了 Python 中最值得学习的功能，旨在让读者快速感受一下 Python 的特色。学完本教程的读者可以阅读和编写 Python 模块和程序，也可以继续学习 [Python 标准库](https://docs.python.org/zh-cn/3.12/library/index.html#library-index)。
+官方解释器与扩展库可从 [python.org](https://www.python.org/) 免费获取。标准库全貌见 [The Python Standard Library](https://docs.python.org/zh-cn/3/library/index.html)；语言定义见 [The Python Language Reference](https://docs.python.org/zh-cn/3/reference/index.html)。
+
+## 定位与范围
+
+本教程刻意**不覆盖**全部语法与标准库，只保留对「读过官方教程前几章就能写模块级代码」足够的内容。若你已能读写简单 Python 程序，可把本站当作**结构化速查**，需要时再去标准库按模块深挖。
+
+下列对比只用来校准预期——**不是**严谨语言对比，但能挡住最常见的误判：
+
+```javascript
+// JS：function 声明会提升；块级作用域靠 let/const
+for (var i = 0; i < 3; i++) {}
+console.log(i) // 3（var 泄漏到外层）
+```
+
+```python
+# Python：for 循环变量留在函数/模块作用域里，但没有「var 提升」
+for i in range(3):
+    pass
+print(i)  # 2（存在泄漏，但规则与 JS 的 var 完全不同）
+```
+
+---
+
+**权威延伸**：[Python 官方教程目录](https://docs.python.org/zh-cn/3/tutorial/)

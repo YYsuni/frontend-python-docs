@@ -1,153 +1,183 @@
 ---
 title: 5. 数据结构
-description: _
+description: list/tuple/set/dict API、推导式与嵌套、del、用 enumerate/zip 写循环——对齐 Map/Set/数组心智并标出可变与哈希约束。
 ---
 
-## 一、列表（list）详解
+## 5.1 列表 `list`
 
-### 1. 核心方法
+### 常用方法（速记）
 
-| 方法           | 作用                   | 代码示例                       |
-| -------------- | ---------------------- | ------------------------------ |
-| `append(x)`    | 末尾添加元素           | `a = [1]; a.append(2) → [1,2]` |
-| `extend(iter)` | 批量添加可迭代对象     | `a.extend([3,4]) → [1,2,3,4]`  |
-| `insert(i,x)`  | 指定索引插入           | `a.insert(0,0) → [0,1,2,3,4]`  |
-| `remove(x)`    | 删除第一个匹配值       | `a.remove(2) → [0,1,3,4]`      |
-| `pop(i)`       | 删除并返回指定索引元素 | `a.pop() → 4; a → [0,1,3]`     |
-| `clear()`      | 清空列表               | `a.clear() → []`               |
-| `index(x)`     | 查找第一个匹配值索引   | `[1,2,2].index(2) → 1`         |
-| `count(x)`     | 统计元素出现次数       | `[1,2,2].count(2) → 2`         |
-| `sort()`       | 原地排序               | `[3,1].sort() → [1,3]`         |
-| `reverse()`    | 原地反转               | `[1,2].reverse() → [2,1]`      |
-| `copy()`       | 浅拷贝                 | `b = a.copy()`                 |
+| 方法                    | 作用                   |
+| ----------------------- | ---------------------- |
+| `append(x)`             | 尾部加一个元素         |
+| `extend(iter)`          | 追加一系列元素         |
+| `insert(i, x)`          | 在索引前插入           |
+| `remove(x)`             | 删第一个等于 `x` 的项  |
+| `pop([i])`              | 弹出并返回（默认末尾） |
+| `clear()`               | 清空                   |
+| `index(x)` / `count(x)` | 查找 / 计数            |
+| `sort()` / `reverse()`  | 原地排序 / 反转        |
+| `copy()`                | 浅拷贝                 |
 
-### 2. 列表应用
+### 当作栈 / 队列
 
-- **堆栈（后进先出）**
-
-```python
-stack = [1,2]
-stack.append(3)  # 入栈
-stack.pop()      # 出栈 → 3
-```
-
-- **队列（先进先出）**：列表效率低，推荐 `deque`
+- **栈**：`append` + `pop()`。
+- **队列**：列表左侧弹出是 **O(n)**；高频双端队列用 `collections.deque`。
 
 ```python
+stack: list[int] = [1, 2]
+stack.append(3)
+stack.pop()  # 3
+
 from collections import deque
-q = deque([1,2])
+
+q: deque[int] = deque([1, 2])
 q.append(3)
-q.popleft()  # 出队 → 1
+q.popleft()  # 1
 ```
 
-### 3. 列表推导式
-
-- 基础写法：`[表达式 for 变量 in 可迭代对象 if 条件]`
+### 列表推导式
 
 ```python
-# 平方列表
-squares = [x**2 for x in range(5)]  # [0,1,4,9,16]
-# 过滤+转换
-[x*2 for x in [-1,0,1] if x>=0]    # [0,2]
-# 展平嵌套列表
-[[1,2],[3,4]] → [num for elem in [[1,2],[3,4]] for num in elem]
+squares = [x**2 for x in range(5)]
+
+# 等价于带 filter 的 map
+evens = [x * 2 for x in [-1, 0, 1] if x >= 0]
+
+nested = [[1, 2], [3, 4]]
+flat = [num for row in nested for num in row]
+
+matrix = [[1, 2], [3, 4], [5, 6]]
+cols = [[row[i] for row in matrix] for i in range(2)]
+# 更常见：list(zip(*matrix)) → [(1, 3, 5), (2, 4, 6)]
 ```
 
-### 4. 嵌套列表推导式
+---
+
+## 5.2 `del` 语句
+
+按索引 / 切片删除，**不产生值**（和 `pop` 不同）。
 
 ```python
-# 矩阵转置
-matrix = [[1,2],[3,4],[5,6]]
-[[row[i] for row in matrix] for i in range(2)]  # [[1,3,5],[2,4,6]]
-# 简洁写法：list(zip(*matrix))
+a = [1, 2, 3, 4]
+del a[0]      # [2, 3, 4]
+del a[1:3]    # [2]
+del a[:]      # []
 ```
 
-## 二、del 语句
+---
 
-- 按索引/切片删除，无返回值
+## 5.3 元组 `tuple`
+
+- **不可变**序列；内容全可哈希时，可当 **dict 键** 或 **set 元素**。
+- 单元素元组：`(1,)`，逗号不能省。
+- **解构**：`x, y, z = point`；`*rest` 吃剩余。
 
 ```python
-a = [1,2,3,4]
-del a[0]    # [2,3,4]
-del a[1:3]  # [2]
-del a[:]    # 清空
+page = ("https://example.com", 200, 1024)
+url, status, size = page
+
+head, *tail = (1, 2, 3, 4)
+print(head, tail)  # 1 [2, 3, 4]
 ```
 
-## 三、元组（tuple）
+---
 
-### 核心特性
+## 5.4 集合 `set`
 
-- **不可变**：无法修改元素
-- **创建**：`()` 或 逗号分隔；单元素必须加逗号
+- **无序**、**元素唯一**；`{}` 建的是**空字典**，空集合必须 `set()`。
+- 运算：`- | & ^`（差 / 并 / 交 / 对称差）。
 
 ```python
-t = (1,2,3)  # 标准创建
-t1 = 1,      # 单元素元组 → (1,)
-empty = ()   # 空元组
+seen: set[str] = set()
+for token in ["a", "b", "a"]:
+    seen.add(token)
+print(seen)  # {'a', 'b'}
+
+old = {1, 2, 3}
+new = {2, 3, 4}
+print(new - old)  # {4}   新增
+print(old - new)  # {1}   删除
+print(old & new)  # {2, 3} 交集
 ```
 
-- **序列解包**
+---
+
+## 5.5 字典 `dict`（3.7+ 保插入序）
+
+- 键必须 **hashable**；**不要**用 `list`/`dict` 当键。
+- 合并字典（3.9+）：`|` 与 `|=`。
 
 ```python
-x, y, z = (1,2,3)  # x=1,y=2,z=3
+base = {"a": 1, "b": 2}
+overlay = {"b": 99, "c": 3}
+merged = base | overlay
+print(merged)  # {'a': 1, 'b': 99, 'c': 3}
+
+# setdefault / defaultdict：统计词频时很省事
+counts: dict[str, int] = {}
+for word in ["a", "b", "a"]:
+    counts[word] = counts.get(word, 0) + 1
 ```
 
-## 四、集合（set）
-
-### 核心特性
-
-- **无序、无重复**
-- **创建**：`{}` 或 `set()`；空集合必须用 `set()`
+`.keys()` / `.values()` / `.items()` 是**动态视图**：
 
 ```python
-s = {1,2,2,3}  # {1,2,3}
-s = set([1,2])
+d = {"k": 1}
+view = d.keys()
+d["k"] = 2
+print(list(view))  # ['k']，值通过 items() 才能看到新 value
 ```
 
-### 集合运算
+---
+
+## 5.6 循环技巧
 
 ```python
-a = {1,2,3}; b = {3,4,5}
-a - b   # 差集 → {1,2}
-a | b   # 并集 → {1,2,3,4,5}
-a & b   # 交集 → {3}
-a ^ b   # 对称差集 → {1,2,4,5}
+knights = {"gallahad": "the pure", "robin": "the brave"}
+
+for k, v in knights.items():
+    print(k, v)
+
+for i, v in enumerate(["tic", "tac", "toe"]):
+    print(i, v)
+
+qs = ["When", "What"]
+ans = ["Now", "ever"]
+for q, a in zip(qs, ans):
+    print(f"What is {q!r}?  {a!r}.")
+
+# zip 以最短序列为准；需要补齐看 itertools.zip_longest
 ```
 
-## 五、字典（dict）
+- `sorted(iterable)` 返回新 list；`list.sort()` 原地排序。
+- **去重保序**（3.7+）：`list(dict.fromkeys(items))`。
 
-### 核心特性
+---
 
-- **键值对存储**，键必须不可变（str/int/tuple）
-- **创建**
+## 5.7 比较与布尔
+
+- `in` / `not in`；作用于 dict 时检测**键**。
+- `and` / `or`：**短路**，返回值是操作数本身：
 
 ```python
-d = {'name':'py', 'age':18}
-d = dict(name='py', age=18)
-# 字典推导式
-{x:x**2 for x in range(3)}  # {0:0,1:1,2:4}
+def pick(flags: dict[str, bool]) -> str:
+    # 用 or 链提供默认值，像 TS 的 a ?? b 但要小心假值
+    return flags.get("theme") or "light"
+
+
+print(pick({"theme": ""}))  # 'light'，因为 '' 为假
 ```
 
-### 常用操作
+---
 
-```python
-d['name'] = 'python'  # 赋值/修改
-del d['age']          # 删除键值对
-'name' in d           # 键存在判断 → True
-list(d)               # 获取键列表 → ['name']
-```
+## 5.8 速记：选型
 
-## 六、循环技巧
+| 需要                    | 用      |
+| ----------------------- | ------- |
+| 有序可变序列            | `list`  |
+| 固定记录 / 可哈希复合键 | `tuple` |
+| 唯一成员 / 集合论       | `set`   |
+| 键值映射                | `dict`  |
 
-1. 字典遍历键值：`for k,v in d.items()`
-2. 带索引遍历：`for i,v in enumerate(list)`
-3. 多序列并行遍历：`for x,y in zip(list1,list2)`
-4. 反向遍历：`for x in reversed(list)`
-5. 排序遍历：`for x in sorted(list)`
-6. 去重遍历：`for x in sorted(set(list))`
-
-## 七、条件与序列比较
-
-- 比较运算符：`in / not in / is / is not`
-- 布尔运算：`and`（短路）、`or`（短路）、`not`
-- 序列比较：按字典序逐元素对比，短序列更小
+**权威延伸**：[5. Data Structures](https://docs.python.org/zh-cn/3/tutorial/datastructures.html)

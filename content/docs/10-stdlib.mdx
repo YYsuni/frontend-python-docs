@@ -1,190 +1,193 @@
 ---
 title: 10. 标准库简介
-description: _
+description: os/shutil、glob、argparse、re、datetime、json、urllib、timeit 等「脚本常用」模块速查，并标明生产环境更常见的第三方替代。
 ---
 
-## 1. 操作系统接口（os / shutil）
+## 10.1 速查心智图
 
-- **os**：底层系统操作，**禁止 from os import \***（避免覆盖内置 open）
-- **shutil**：文件/目录高级操作，更易用
+| 你要做     | 先用标准库           | 常见升级             |
+| ---------- | -------------------- | -------------------- |
+| 路径与文件 | `pathlib` + `shutil` | 云存储 SDK           |
+| CLI 参数   | `argparse`           | `click` / `typer`    |
+| HTTP       | `urllib`             | `httpx` / `requests` |
+| 定时/日期  | `datetime`           | `zoneinfo`（3.9+）   |
+| 表格       | `csv`                | `pandas`             |
+
+---
+
+## 10.2 操作系统接口：`os` / `shutil`
+
+- **`os`**：进程、环境变量；路径优先 `pathlib`。
+- **不要** `from os import *`：会盖住内置 `open`。
 
 ```python
-import os
+from pathlib import Path
 import shutil
 
-# 当前目录
-os.getcwd()
-# 切换目录
-os.chdir('/path')
-# 执行系统命令
-os.system('mkdir demo')
-
-# 复制文件
-shutil.copyfile('src.txt', 'dst.txt')
-# 移动/重命名
-shutil.move('src', 'dst')
+src = Path("src.txt")
+dst = Path("demo") / "readme.txt"
+dst.parent.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(src, dst)
+print(Path.cwd())
 ```
 
-## 2. 文件通配符（glob）
+---
 
-快速按规则匹配文件列表
+## 10.3 通配符：`glob`
 
 ```python
 import glob
-# 匹配所有 .py 文件
-print(glob.glob('*.py'))
+from pathlib import Path
+
+print(glob.glob("*.py"))
+print([p.name for p in Path(".").rglob("*.py")])
 ```
 
-## 3. 命令行参数（sys / argparse）
+---
 
-- **sys.argv**：简单参数列表
-- **argparse**：专业命令行解析
+## 10.4 CLI 参数：`argparse`
 
 ```python
-# sys.argv 用法
-import sys
-print(sys.argv)  # 运行: python test.py a b → ['test.py','a','b']
-
-# argparse 用法
 import argparse
-parser = argparse.ArgumentParser(description='显示文件前N行')
-parser.add_argument('files', nargs='+')
-parser.add_argument('-l', '--lines', type=int, default=10)
+
+parser = argparse.ArgumentParser(description="打印文件前 N 行")
+parser.add_argument("files", nargs="+")
+parser.add_argument("-n", "--lines", type=int, default=10)
 args = parser.parse_args()
 print(args.files, args.lines)
 ```
 
-## 4. 错误输出与程序终止（sys）
+---
+
+## 10.5 标准流与退出：`sys`
 
 ```python
 import sys
-# 标准错误输出（不被重定向覆盖）
-sys.stderr.write('错误信息\n')
-# 终止程序
-sys.exit()
+
+print("正常信息")
+print("告警：磁盘将满", file=sys.stderr)
+sys.exit(1)  # 退出码非 0，shell/CI 会当作失败
 ```
 
-## 5. 字符串匹配（re）
+---
 
-复杂匹配用正则，简单操作用字符串方法
+## 10.6 正则：`re`
 
 ```python
 import re
-# 查找以 f 开头的单词
-re.findall(r'\bf[a-z]*', 'foot fell fastest')
-# 去重连续单词
-re.sub(r'(\b[a-z]+) \1', r'\1', 'the the cat')
 
-# 简单替换优先用字符串方法
-'tea for too'.replace('too', 'two')
+print(re.findall(r"\bf[a-z]*", "foot fell fastest"))
+print(re.sub(r"(\b[a-z]+) \1", r"\1", "the the cat"))
+
+"tea for too".replace("too", "two")
 ```
 
-## 6. 数学与随机（math / random / statistics）
+---
+
+## 10.7 数学 / 随机 / 统计
 
 ```python
 import math
 import random
 import statistics
 
-# 数学计算
-math.cos(math.pi / 4)
-math.log(1024, 2)
-
-# 随机
-random.choice(['apple', 'pear'])
-random.sample(range(100), 5)
-random.randint(1, 10)
-
-# 统计
-data = [1, 2, 3, 4, 5]
-statistics.mean(data)   # 均值
-statistics.median(data) # 中位数
+print(math.hypot(3, 4))
+print(random.sample(range(100), k=5))
+print(statistics.median([1, 3, 5, 7]))
 ```
 
-## 7. 网络请求（urllib）
+---
 
-极简获取网页内容
+## 10.8 极简 HTTP：`urllib`
 
 ```python
 from urllib.request import urlopen
-with urlopen('https://httpbin.org/get') as resp:
-    print(resp.read().decode())
+
+with urlopen("https://example.com", timeout=5) as resp:
+    snippet = resp.read(256)
+    print(snippet[:64])
 ```
 
-## 8. 日期时间（datetime）
+> Cookie、重试、连接池：换 `httpx` / `requests`。
+
+---
+
+## 10.9 日期时间：`datetime`
 
 ```python
-from datetime import date
-now = date.today()
-# 格式化
-print(now.strftime('%Y-%m-%d %A'))
-# 日期计算
-birth = date(1990, 1, 1)
-print((now - birth).days)
+from datetime import date, datetime, timedelta, timezone
+
+today = date.today()
+print(today.strftime("%Y-%m-%d"))
+
+utc_now = datetime.now(timezone.utc)
+print(utc_now.isoformat())
+
+print(today - timedelta(days=7))
 ```
 
 ---
 
-## 9. 数据压缩（zlib）
+## 10.10 压缩：`zlib`
 
 ```python
 import zlib
-s = b'hello python hello world'
-compressed = zlib.compress(s)
-decompressed = zlib.decompress(compressed)
-```
 
-## 10. 性能测试（timeit）
-
-对比代码执行速度
-
-```python
-from timeit import Timer
-# 对比变量交换两种写法
-Timer('t=a;a=b;b=t', 'a=1;b=2').timeit()
-Timer('a,b = b,a', 'a=1;b=2').timeit()
-```
-
-## 11. 代码质量（doctest / unittest）
-
-- **doctest**：文档字符串里写测试
-- **unittest**：大型项目专业测试
-
-```python
-# doctest
-def avg(x):
-    """求平均 >>> avg([1,2,3]) 2.0 """
-    return sum(x)/len(x)
-import doctest; doctest.testmod()
-
-# unittest
-import unittest
-class TestAvg(unittest.TestCase):
-    def test_avg(self):
-        self.assertEqual(avg([1,2,3]), 2.0)
-unittest.main()
+payload = b"hello python hello world"
+compressed = zlib.compress(payload)
+assert zlib.decompress(compressed) == payload
 ```
 
 ---
 
-## 12. 数据处理（自带电池）
-
-- **json**：JSON 序列化
-- **csv**：表格文件读写
-- **sqlite3**：轻量数据库
-- **xml**：XML 解析
+## 10.11 微基准：`timeit`
 
 ```python
-import json
-data = {'name': 'py', 'age': 20}
-# 转 JSON 字符串
-json_str = json.dumps(data)
-# 转回对象
-obj = json.loads(json_str)
+from timeit import timeit
+
+print(timeit("t=a; a=b; b=t", "a=1; b=2"))
+print(timeit("a,b = b,a", "a=1; b=2"))
 ```
 
-## 学习提示
+---
 
-1. 优先掌握：**os/shutil、glob、sys/argparse、datetime、json**
-2. 网络请求实际项目常用：**requests**（第三方，比 urllib 更友好）
-3. 数据处理常用：**pandas**（第三方，对标前端 Lodash）
+## 10.12 测试：`doctest` / `unittest`
+
+```python
+def avg(xs: list[float]) -> float:
+    """Return average.
+
+    >>> avg([1, 2, 3])
+    2.0
+    """
+    return sum(xs) / len(xs)
+
+
+if __name__ == "__main__":
+    import doctest
+
+    doctest.testmod()
+```
+
+---
+
+## 10.13 数据交换：`json` / `csv` / `sqlite3`
+
+```python
+import csv
+import io
+
+buf = io.StringIO("name,score\nada,100\n")
+reader = csv.DictReader(buf)
+print(list(reader))
+```
+
+---
+
+## 10.14 学习顺序建议
+
+1. `pathlib` → 少写字符串路径拼接。
+2. `argparse` + `if __name__ == "__main__"` → 可发布 CLI。
+3. `datetime` + `json` + `re` → 日常胶水三件套。
+
+**权威延伸**：[10. Brief Tour of the Standard Library](https://docs.python.org/zh-cn/3/tutorial/stdlib.html)

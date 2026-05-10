@@ -1,22 +1,35 @@
 ---
 title: 12. 虚拟环境和包
-description: _
+description: venv 隔离、激活/退出、pip 常用命令、requirements 冻结与恢复——对齐 node_modules，并补一行现代依赖管理提示。
 ---
 
-## 一、为什么要用虚拟环境
+## 12.1 为什么需要虚拟环境
 
-- 不同项目依赖**不同版本包**，避免冲突
-- 让项目依赖**独立、可复现**
-- 前端类比：类似 `node_modules` + `.nvm` 的作用
-
-## 二、创建虚拟环境
+| 痛点                               | venv 解决                  |
+| ---------------------------------- | -------------------------- |
+| 项目 A/B 依赖版本冲突              | 每项目独立 `site-packages` |
+| 全局 `pip install` 弄脏系统 Python | 依赖装进 `.venv`           |
+| CI 复现                            | 固定解释器版本 + 锁文件    |
 
 ```bash
-# 创建（推荐目录名 .venv，隐藏且不冲突）
+# 进入仓库根目录后：
+python --version        # 先确认你要的 minor 版本
 python -m venv .venv
 ```
 
-## 三、激活虚拟环境
+---
+
+## 12.2 创建
+
+```bash
+python -m venv .venv
+```
+
+> 旧命令 `pyvenv` 已废弃；第三方 `virtualenv` 仍有场景，但对新手不必要。
+
+---
+
+## 12.3 激活
 
 ### Windows（cmd / PowerShell）
 
@@ -30,69 +43,79 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-激活成功：终端前缀出现 `(.venv)`
+成功时提示符前常出现 `(.venv)`；此时 `which python` / `where python` 应指向 `.venv`。
 
-## 四、退出虚拟环境
+---
+
+## 12.4 退出
 
 ```bash
 deactivate
 ```
 
-## 五、pip 包管理（常用必背）
+---
 
-### 安装包
+## 12.5 `pip`：安装与维护
 
 ```bash
-# 最新版
+python -m pip install -U pip
 python -m pip install requests
-
-# 指定版本
-python -m pip install requests==2.6.0
-```
-
-### 升级包
-
-```bash
-python -m pip install --upgrade requests
-```
-
-### 卸载包
-
-```bash
+python -m pip install "requests>=2.31,<3"
 python -m pip uninstall requests
-```
-
-### 查看已安装包
-
-```bash
 python -m pip list
-```
-
-### 查看包详情
-
-```bash
 python -m pip show requests
 ```
 
-## 六、依赖导出与恢复（前端 package.json 等价）
+始终用 **`python -m pip`**：避免 PATH 上的 `pip.exe` 指向**另一只** Python。
 
-### 导出依赖到 requirements.txt
+---
+
+## 12.6 锁定依赖：freeze 与恢复
 
 ```bash
 python -m pip freeze > requirements.txt
-```
-
-### 从文件安装所有依赖
-
-```bash
 python -m pip install -r requirements.txt
 ```
 
-## 七、前端快速对照
+**局限**：`freeze` 是「环境里装着啥」，不区分直接依赖 / 传递依赖。更严肃的做法：
 
-| 功能     | Python           | 前端 Node.js   |
-| :------- | :--------------- | :------------- |
-| 环境隔离 | venv             | nvm / 项目独立 |
-| 包安装   | pip install      | npm install    |
-| 依赖清单 | requirements.txt | package.json   |
-| 恢复环境 | pip install -r   | npm install    |
+```bash
+# 只举例：把编译后的锁定文件交给 CI
+python -m pip install pip-tools
+# pip-compile requirements.in  → 生成完整 pins（需自行查 pip-tools 文档）
+```
+
+或直接采用 `uv` / `poetry` / `pdm` 等工具链。
+
+---
+
+## 12.7 可编辑安装（开发库时常用）
+
+在包根目录（含 `pyproject.toml` 或 `setup.cfg`）：
+
+```bash
+python -m pip install -e .
+```
+
+这像「本地 `npm link`」：改源码立即影响当前环境，适合开发自研库。
+
+---
+
+## 12.8 前端对照表
+
+| 概念     | Python                                | Node.js                       |
+| -------- | ------------------------------------- | ----------------------------- |
+| 环境隔离 | `venv`                                | `nvm` + 每项目 `node_modules` |
+| 包装器   | `pip`                                 | `npm` / `pnpm` / `yarn`       |
+| 清单     | `requirements.txt` / `pyproject.toml` | `package.json`                |
+| 锁文件   | 工具生成（pip-tools、uv…）            | `package-lock.json` 等        |
+
+---
+
+## 12.9 速记
+
+1. **先建 venv → 激活 → 再 `pip install`**。
+2. **不要提交 `.venv`**；提交依赖声明 / 锁文件。
+3. **CI** 固定 Python 版本矩阵（例如 3.11、3.12）。
+
+**权威延伸**：[12. Virtual Environments and Packages](https://docs.python.org/zh-cn/3/tutorial/venv.html)

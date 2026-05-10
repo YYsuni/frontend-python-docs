@@ -1,48 +1,70 @@
 ---
 title: 1. 课前甜点
-description: _
+description: 用前端视角回答「为什么学 Python」：典型场景、与 Shell/C/Java/Perl 的取舍，以及本教程的阅读顺序。
 ---
 
-## 一、启动 Python 解释器
+## 1.1 Python 适合你做什么
 
-1. **各系统启动命令**
+| 方向         | 例子                                               |
+| ------------ | -------------------------------------------------- |
+| 自动化       | 批处理文件、日志 / 文本清洗、定时任务、胶水脚本    |
+| 工具与小产品 | CLI、简单 GUI（如 Tk）、小规模内部系统             |
+| 跨界协作     | 给 C/C++/Java 库写测试与 demo、协议 / 数据格式验证 |
 
-- Unix/Linux：终端输 `python3.12`
-- Windows：`python3.12` 或 `py` 启动器
-- 退出：Unix `Ctrl+D` / Windows `Ctrl+Z`，通用 `quit()`
+把 Python 想成「**强标准库的 JS 运行时 + 一等文件系统**」往往够用来决定要不要学：同样的脚本，用 Node 也能写，但处理本地文件、CSV、sqlite、argparse 这类事，Python 经常**更少依赖**。
 
-2. **3种常用启动方式**
+## 1.2 和常见技术栈怎么比
 
-- 交互式：直接输 `python3`，逐行执行代码
-- 命令行执行代码：`python3 -c "代码语句"`（语句建议加引号）
-- 模块当脚本运行：`python3 -m 模块名`
-- 脚本跑完进入交互：`python3 -i 脚本.py`
+1. **相对 Shell/Batch**：能做完整应用逻辑、结构化数据、网络与 UI，不止「把几条命令拼起来」。
+2. **相对 C/Java**：解释执行，改完就跑；跨平台成本通常更低，适合验证想法与脚本层。
+3. **相对 Perl/Awk**：通用语法与现代标准库对**非文本场景**更友好，长期维护读起来更省力。
 
-3. **行编辑能力**
-   依赖 `GNU Readline`，支持代码补全、历史命令、光标编辑；`Ctrl+P` 可快速检测是否支持。
-
-## 二、命令行参数 sys.argv
-
-1. 所有命令行参数以**字符串列表**存在 `sys.argv`
-2. 规则：
-
-- 无脚本无参数：`sys.argv[0]` 为空串
-- `python -c` 模式：`sys.argv[0] = '-c'`
-- `python -m 模块` 模式：`sys.argv[0]` 为模块完整路径名
-- `-c`/`-m` 后的参数全部保留在 `sys.argv`，由业务代码自己解析
-
-## 三、交互模式
-
-1. 提示符：`>>>` 主提示符、`...` 多行次提示符
-2. 适合临时测试小段代码、逻辑片段，和浏览器 Console / Node REPL 逻辑一致
-
-## 四、源码文件编码规则
-
-1. **默认编码**：**UTF-8**，支持中文、多语言字符
-2. 自定义编码声明写法：
+**小例子**：前端里你用 `JSON.parse` 读配置；Python 同样一行 `json.load`，但还能顺手用 `pathlib` 拼路径、用 `venv` 隔离依赖——**整条链路都在标准库里**。
 
 ```python
-# -*- coding: cp1252 -*-
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+def load_config(path: Path) -> dict:
+    with path.open(encoding="utf-8") as f:
+        return json.load(f)
 ```
 
-3. 若文件首行是 shebang `#!/usr/bin/env python3`，编码声明放**第二行**即可。
+## 1.3 语言特性（前端可对照的要点）
+
+| 概念     | Python                 | 可联想                                                   |
+| -------- | ---------------------- | -------------------------------------------------------- |
+| 类型系统 | 动态类型，运行时检查   | JS；可选 `typing` 注解（**非强制**，不对运行期自动兜底） |
+| 代码块   | 缩进是语法             | 没有 `{}`，换用缩进层级表达块                            |
+| 执行模型 | 解释执行 + REPL        | 像 `node` 交互环境，适合验证小段逻辑                     |
+| 复用单位 | 模块 `.py`、包（目录） | 接近「一个文件一个模块」，导入语义和 ESM 不同            |
+
+**可扩展性**：热点可用 C 扩展；也可把 Python **嵌入**别的程序里当脚本层（与在浏览器里跑 JS 不同层，但角色类似）。
+
+```typescript
+// TS：类型主要在编译期；运行期对象仍是“松的”
+type User = { id: number }
+const u = { id: 1, extra: true } as User // 可能骗过类型检查者
+```
+
+```python
+# Python：注解可选；运行期不会拦你多塞字段（除非你用 dataclass/slot 等约束）
+class User:
+    def __init__(self, id: int) -> None:
+        self.id = id
+
+u = User(1)
+u.extra = True  # 合法，动态属性
+```
+
+## 1.4 冷知识与学习姿势
+
+- **名字来源**：Monty Python 喜剧团，不是蟒蛇。
+- **最有效练习**：读完一小节就在解释器里敲一遍；本教程示例彼此独立，可离线阅读。
+- **建议阅读顺序**：解释器与运行方式 → 表达式与内置类型 → 函数与控制流 → **模块 / 包** → 异常与类 → 标准库与虚拟环境。
+
+---
+
+**权威延伸**：[Python 入门（官方）](https://docs.python.org/zh-cn/3/tutorial/) 与本章对应的原文在教程最前几节；标准库见 [library index](https://docs.python.org/zh-cn/3/library/index.html)。

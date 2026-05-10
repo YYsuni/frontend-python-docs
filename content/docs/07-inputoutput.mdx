@@ -1,166 +1,140 @@
 ---
 title: 7. 输入与输出
-description: _
+description: f-string 与 format、str/repr、文件的 with 与编码、JSON 序列化——脚本输出与持久化数据的常用拼图。
 ---
 
-## 7. 输出格式化（4 种方式）
+## 7.1 输出格式化
 
-### 7.1.1 f-string（推荐）
-
-- 字符串前加 `f`/`F`，`{变量/表达式}` 直接嵌入
-- 支持格式控制、对齐、`!r`/`!s`/`!a`、`=` 自说明
+### f-string（首选）
 
 ```python
-# 基础
+import math
+
 name, age = "Alice", 25
 print(f"{name} is {age}")
-
-# 精度与对齐
-import math
 print(f"π ≈ {math.pi:.3f}")
 
-# 对齐打印
-table = {"A": 123, "B": 4567}
-for k, v in table.items():
-    print(f"{k:5} → {v:6d}")
+table = {"Sjoerd": 4127, "Jack": 4098, "Dcab": 7678}
+for name, phone in table.items():
+    print(f"{name:10} → {phone:10d}")
 
-# repr 与自说明
-print(f"{name=} {age=}")
+print(f"{name=!s}")  # 自解释调试输出
 ```
 
----
-
-### 7.1.2 str.format()
-
-- 用 `{}` 占位，支持位置/关键字/字典传参
-- 适合复杂排版与兼容旧代码
+### `str.format`（维护旧代码仍会看到）
 
 ```python
-# 位置
-print("{0} + {1} = {2}".format(1, 2, 3))
-
-# 关键字
+print("{} + {} = {}".format(1, 2, 3))
 print("{name}: {score}".format(name="Tom", score=99))
 
-# 字典解包
 user = {"id": 100, "name": "Amy"}
 print("{id} → {name}".format(**user))
 ```
 
----
-
-### 7.1.3 手动格式化（字符串方法）
-
-- `ljust()`/`rjust()`/`center()` 对齐
-- `zfill()` 左侧补零
+### 手动对齐与补零
 
 ```python
 for x in range(1, 6):
-    print(
-        repr(x).rjust(2),
-        repr(x*x).rjust(3),
-        repr(x**3).rjust(4)
-    )
+    print(repr(x).rjust(2), repr(x * x).rjust(3), repr(x**3).rjust(4))
 
-print("123".zfill(6))  # 000123
+print("12".zfill(5))  # '00012'
 ```
 
----
-
-### 7.1.4 旧式 % 格式化
-
-- 类似 C printf，不推荐新项目使用
+### 旧式 `%`（了解即可）
 
 ```python
 import math
+
 print("pi = %.3f" % math.pi)
 ```
 
----
-
-### str() vs repr()
-
-- `str()`：人读友好
-- `repr()`：解释器可执行，带引号/转义
+### `str()` vs `repr()`
 
 ```python
-s = "hello\n"
-print(str(s))   # hello
-print(repr(s))  # 'hello\n'
+s = "hello\nworld"
+print(str(s))   # 人读友好
+print(repr(s))  # 解释器倾向可复现的形式
 ```
 
 ---
 
-## 7. 文件读写（核心）
+## 7.2 文件读写
 
-### 打开文件（with 自动关闭）
+**总原则**：文本显式 `encoding="utf-8"`；用 `with` 关文件。Windows 上缺 encoding 有时会踩 **GBK** 默认坑。
 
 ```python
-# 读文本
-with open("test.txt", "r", encoding="utf-8") as f:
+from pathlib import Path
+
+text_path = Path("test.txt")
+text_path.write_text("hello\n", encoding="utf-8")
+
+print(text_path.read_text(encoding="utf-8"))
+```
+
+等价 `open` 写法（需要逐块读或 `seek` 时更常用）：
+
+```python
+with open("test.txt", encoding="utf-8") as f:
     content = f.read()
 
-# 写文本（覆盖）
 with open("out.txt", "w", encoding="utf-8") as f:
     f.write("hello\n")
 
-# 追加
 with open("log.txt", "a", encoding="utf-8") as f:
-    f.write("append\n")
+    f.write("one more line\n")
 ```
 
-### 常用模式
-
-- `r`：只读（默认）
-- `w`：只写（覆盖）
-- `a`：追加
-- `r+`：读写
-- `b`：二进制（图片/视频）
-- **文本必加 `encoding="utf-8"`**
-
----
-
-### 文件对象方法
+### 逐行读（省内存）
 
 ```python
-f = open("test.txt", encoding="utf-8")
+with open("big.log", encoding="utf-8") as f:
+    for line in f:
+        line = line.rstrip("\n")
+        if line:
+            ...  # 在这里处理一行（解析、聚合、写下游）
+```
 
-f.read()       # 全读
-f.readline()   # 读一行
-for line in f: # 逐行迭代（省内存）
-    print(line, end="")
+### 二进制模式
 
-f.write("str") # 写入
-f.tell()       # 当前位置
-f.seek(0)      # 跳转到开头
-f.close()      # 关闭（with 自动做）
+```python
+png_path = Path("logo.png")
+data = png_path.read_bytes()
+assert data[:8] == b"\x89PNG\r\n\x1a\n"  # 魔数检查示例
 ```
 
 ---
 
-## 7.2.2 JSON 序列化（存结构化数据）
+## 7.3 JSON
 
-- 用于字典/列表，跨语言通用
-- **不要用 pickle 存不可信数据**
+- **适合跨语言**；`datetime` 等**不原生支持**，要自己转字符串或用自定义 `default`。
+- **绝不要**用 `pickle` 处理不可信输入（等效执行代码级别风险）。
 
 ```python
 import json
+from datetime import date
 
-# 写入
-data = {"name": "py", "ver": 3.12}
+payload = {"ok": True, "when": date.today().isoformat()}
+
+print(json.dumps(payload, ensure_ascii=False))
+
+raw = '{"nums": [1, 2, 3]}'
+obj = json.loads(raw)
+print(sum(obj["nums"]))
+
+# 落地文件：indent 让 diff 可读
 with open("data.json", "w", encoding="utf-8") as f:
-    json.dump(data, f, ensure_ascii=False, indent=2)
-
-# 读取
-with open("data.json", encoding="utf-8") as f:
-    data = json.load(f)
+    json.dump(payload, f, ensure_ascii=False, indent=2)
 ```
 
 ---
 
-## 速记要点
+## 7.4 速记
 
-1. **输出优先用 f-string**，简洁高效
-2. **文件必用 with**，自动关闭防泄漏
-3. **文本用 utf-8**，二进制加 `b`
-4. **结构化存 json**，安全通用
+| 任务              | 选什么                   |
+| ----------------- | ------------------------ |
+| 结构化日志 / 调试 | f-string                 |
+| 大文件行遍历      | `for line in f`          |
+| 路径与一小块 API  | `pathlib.Path`           |
+| 跨语言持久化      | JSON（必要时自定义编码） |
+
+**权威延伸**：[7. Input and Output](https://docs.python.org/zh-cn/3/tutorial/inputoutput.html)

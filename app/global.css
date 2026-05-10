@@ -2,11 +2,21 @@
 @import 'fumadocs-ui/css/vitepress.css';
 @import 'fumadocs-ui/css/preset.css';
 
-html {
-	scrollbar-gutter: stable;
-}
-
 html > body[data-scroll-locked] {
 	margin-right: 0px !important;
 	--removed-body-scroll-bar-size: 0px !important;
+}
+
+html {
+	scrollbar-gutter: stable;
+	.prose :where(p):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+		margin-top: 0.5rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.prose :where(h2):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+		font-size: 1.375rem;
+		margin-top: 2rem;
+		margin-bottom: 1rem;
+	}
 }
