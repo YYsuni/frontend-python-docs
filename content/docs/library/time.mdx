@@ -1,0 +1,83 @@
+---
+title: time
+description: 标准库时间：挂钟与单调时钟、perf 计时、sleep、struct_time、格式化与解析、时区相关变量；链回标准库导读与官方 time 手册。
+---
+
+[`time`](https://docs.python.org/zh-cn/3.12/library/time.html) 提供 **时间戳、睡眠、日历时间与格式化** 等底层接口；需要「带时区的 datetime 对象、算术与 ISO 8601」时，日常更常用 [`datetime`](https://docs.python.org/zh-cn/3.12/library/datetime.html)（可与本文的 `struct_time` / `strftime` 互转）。
+
+## 该用哪种「时钟」
+
+| 函数                                           | 适用场景                                           | 注意                                     |
+| ---------------------------------------------- | -------------------------------------------------- | ---------------------------------------- |
+| `time()`                                       | **Unix 时间戳**（通常自 1970-01-01 UTC），秒，浮点 | 系统可调时钟，**不适合**严格测间隔或超时 |
+| `monotonic()` / `monotonic_ns()`               | **间隔、超时、重试退避**                           | 前进、不受 NTP 回调影响；**无**日历语义  |
+| `perf_counter()` / `perf_counter_ns()`         | **代码片段耗时**（基准、profile）                  | 最高可用分辨率；仅保证差值有意义         |
+| `thread_time()` / `thread_time_ns()`（若可用） | **当前线程 CPU 时间**                              | 平台可用性见文档                         |
+
+```python
+import time
+
+t0 = time.perf_counter()
+time.sleep(0.1)
+dt = time.perf_counter() - t0
+```
+
+- **`get_clock_info(name)`**：查询 `time` / `monotonic` / `perf_counter` 等时钟是否单调、分辨率等。
+
+## `sleep`
+
+```python
+import time
+time.sleep(0.5)  # 秒，可为 float；实际精度受 OS 调度影响
+```
+
+- **非忙等**；在异步代码里应使用 `asyncio.sleep`，不要用 `time.sleep` 阻塞事件循环。
+
+## `struct_time` 与转换
+
+| API                              | 作用                                                            |
+| -------------------------------- | --------------------------------------------------------------- |
+| `gmtime([secs])`                 | UTC 的 `struct_time`；`secs` 默认当前 `time()`                  |
+| `localtime([secs])`              | **本地** `struct_time`（受系统时区影响）                        |
+| `mktime(t)`                      | **本地** `struct_time` → 与 `time()` 兼容的秒数（夏令时坑见下） |
+| `asctime([t])` / `ctime([secs])` | 固定格式的英文时间串（偏遗留，新代码可优先 `datetime`）         |
+
+`struct_time` 字段含 `tm_year`、`tm_mon`、`tm_mday`、`tm_hour`、`tm_min`、`tm_sec`、`tm_wday`、`tm_yday`、`tm_isdst` 等；**月从 1 开始**，与 `datetime.month` 一致。
+
+## 格式化与解析
+
+```python
+import time
+t = time.localtime()
+s = time.strftime("%Y-%m-%d %H:%M:%S", t)
+t2 = time.strptime(s, "%Y-%m-%d %H:%M:%S")
+```
+
+| 函数                       | 说明                                                                                                       |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `strftime(format, t)`      | `struct_time` → 字符串；`t` 默认 `localtime()`                                                             |
+| `strptime(string, format)` | 字符串 → `struct_time`（**解析为本地语义**，与 `datetime.strptime` 行为细节不同，复杂场景优先 `datetime`） |
+
+## 时区与夏令时（了解）
+
+| 模块级变量 | 含义                                         |
+| ---------- | -------------------------------------------- |
+| `timezone` | UTC 与本地标准时间的固定偏移（秒，非夏令时） |
+| `altzone`  | 若有夏令时，与 UTC 的偏移                    |
+| `daylight` | 系统是否配置夏令时                           |
+| `tzname`   | 标准时区名与夏令时名元组                     |
+
+跨区展示、存储与算术建议用 **`zoneinfo`（3.9+）** 或 **`datetime` 带 `tzinfo`**，不要只靠这些整数偏移。
+
+## 纳秒变体（3.7+）
+
+`time_ns()`、`monotonic_ns()`、`perf_counter_ns()` 等返回 **`int`**，避免浮点累积误差；与秒函数成对使用，**不要混用单位**。
+
+## 易错点（排错速记）
+
+- **`time()` 测「过了多久」**：时钟可能被调整，间隔不准；改用 `monotonic` 或 `perf_counter`。
+- **`mktime` 与夏令时**：歧义时刻行为依赖平台；关键业务用 `datetime` + 显式时区。
+- **`strftime` / `strptime` 与 locale**：部分格式受区域设置影响；要稳定输出用固定格式或 `datetime` ISO。
+- **精度≠实时**：`sleep` 与短间隔计时都受调度器粒度限制；硬实时请用 OS/专用栈。
+
+资料：[time 文档](https://docs.python.org/zh-cn/3.12/library/time.html)

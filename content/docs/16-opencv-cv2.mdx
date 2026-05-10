@@ -1,0 +1,192 @@
+---
+title: OpenCV 匹配（cv2）
+description: 面向游戏画面捕获与模板匹配：`matchTemplate`、轮廓 `matchShapes`、ORB/SIFT 特征匹配；捕获帧约定、ROI、多分辨率与性能要点。
+---
+
+本章从 **「拿到一帧游戏画面 → 在画面上找固定图案」** 的开发视角，只谈 **`cv2` 里的匹配**：有哪几种、在游戏 HUD / UI / 小地图等场景怎么选型、最小可用代码长什么样。深度学习检测、整段视频流水线、极致性能优化等需要时再查官方教程与其它章节。
+
+---
+
+## 1 安装（pip）
+
+```bash
+pip install opencv-python
+```
+
+| 包                           | 说明                                                   |
+| ---------------------------- | ------------------------------------------------------ |
+| **`opencv-python`**          | 带 **`imshow`** 等 GUI，本地调试叠加框、热力图时方便。 |
+| **`opencv-python-headless`** | 无 GUI，适合纯后台捕获管线；与上一包**勿同环境混装**。 |
+
+捕获本身常用 **`mss`**、**`PIL.ImageGrab`**、各显卡厂商/SDK 的帧拷贝；OpenCV 负责 **读入 `numpy` 数组后的匹配**。
+
+---
+
+## 2 从捕获帧到「可匹配」图像
+
+多数捕获接口给出 **RGB** 或 **BGR**；OpenCV 默认按 **BGR** 处理 **`imread`** 与 **`imshow`**。若你从 **`mss`** 得到 RGB：
+
+```python
+import cv2
+import numpy as np
+
+# frame: H×W×3, RGB uint8（示例）
+bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+```
+
+- **`imread` 失败返回 `None`**（磁盘读图时）；内存数组直接 **`cvtColor`**，注意 **`frame is None` / 形状**。
+- **`matchTemplate`** 要求 **`scene` 与 `templ` 通道数、深度一致**；实战里常 **统一转灰度**，减少光照与 UI 渐变干扰。
+- **分辨率**：截图可能是 **1080p / 窗口化 / DPI 缩放**。模板若在另一分辨率截取，往往要对 **`templ` 或 `scene` 做 `resize` / 多尺度循环**（见 §4）。
+
+---
+
+## 3 匹配种类（在游戏里的直觉）
+
+| 类别         | API / 管线                                                                                                            | 游戏里常见输入                          | 典型用途                                             |
+| ------------ | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------- |
+| **滑动模板** | **`cv2.matchTemplate`** + **`minMaxLoc`**（或多峰 + NMS）                                                             | 当前帧 + **一小块 UI 截图（模板）**     | 技能图标、按钮、血条旁图标、固定 HUD 元素            |
+| **轮廓形状** | **`cv2.findContours`** → **`cv2.matchShapes`**                                                                        | **二值化后的两条轮廓**                  | 简单剪影、小地图上的闭合区域形状对比（噪声大时慎用） |
+| **局部特征** | **`detectAndCompute`** → **`BFMatcher`** / **`FlannBasedMatcher`** → **`knnMatch`** + ratio → **`findHomography`** 等 | **同一 UI 在不同缩放/轻微透视下的两帧** | 窗口尺度变化、轻微 3D 透视、不便固定模板时           |
+
+**选型**：能裁 **固定像素大小的 HUD 贴片** → 优先 **模板匹配**；尺度/视角飘得多 → **特征匹配**；只在 **mask/二值图** 上比整体轮廓 → **matchShapes**。
+
+---
+
+## 4 模板匹配：`matchTemplate`
+
+在 **当前帧** 上滑动 **模板图**（事先截好的 PNG），得到响应图 **`result`**，峰值处即模板左上角 **`(x, y)`**。
+
+```python
+import cv2
+
+result = cv2.matchTemplate(scene, templ, cv2.TM_CCOEFF_NORMED)
+min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+```
+
+### 4.1 `method` 与极值
+
+| `method`                                 | 含义要点                     | 最优位置                               |
+| ---------------------------------------- | ---------------------------- | -------------------------------------- |
+| **`TM_SQDIFF`** / **`TM_SQDIFF_NORMED`** | 像素差的平方和（后者归一化） | **`SQDIFF`**：越小越好 → **`min_loc`** |
+| **`TM_CCORR`** / **`TM_CCORR_NORMED`**   | 互相关                       | **越大越好** → **`max_loc`**           |
+| **`TM_CCOEFF`** / **`TM_CCOEFF_NORMED`** | 零均值相关                   | **越大越好** → **`max_loc`**           |
+
+HUD 匹配常用 **`TM_CCOEFF_NORMED`**，用 **`max_val` 当置信度**（例如阈值 0.85）。
+
+**`result` 形状**：**`(W - w + 1, H - h + 1)`**，**`scene`** 为 **`H×W`**，**`templ`** 为 **`h×w`**。
+
+### 4.2 多实例、ROI 与多分辨率
+
+- **只找一个**：**`minMaxLoc`** 即可。
+- **多个冷却图标 / 多枚 buff**：对 **`result`** 做 **阈值** → 取局部极大 → **NMS** 合并邻近峰。
+- **性能**：先 **`scene = frame[y1:y2, x1:x2]`** 只在 **血条区 / 技能栏** 上匹配，比全屏快一个数量级。
+- **分辨率不一致**：外层对 **`templ`** 或 **`scene`** 做 **多尺度 `resize`**，或对 **`templ`** 建 **金字塔**；旋转明显时模板匹配会失效，应改用 **特征匹配** 或换模板策略。
+
+**资料**：[matchTemplate](https://docs.opencv.org/4.x/df/dfb/group__imgproc__object.html#ga586ebfb0a7fb604b343a0231de620e7d)
+
+---
+
+## 5 轮廓形状：`matchShapes`
+
+比较 **两条闭合轮廓**（来自 **`findContours`**）的整体几何相似度，对平移、缩放、旋转有一定不变性；适合 **二值 mask** 上「形状像不像」，例如简化后的区域轮廓。
+
+```python
+import cv2
+
+contours, _ = cv2.findContours(bin_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+d = cv2.matchShapes(contours[i], contours[j], cv2.CONTOURS_MATCH_I2, 0)
+```
+
+**`d` 越小越相似**。游戏画面上 **抗锯齿、特效、动态光照** 会让轮廓抖，需 **阈值 / 形态学** 预处理，否则不稳定。
+
+**资料**：[matchShapes](https://docs.opencv.org/4.x/d3/dc0/group__imgproc__shape.html#gaadc90cb16e2362c9bd6e7363e6e4c317)
+
+---
+
+## 6 局部特征匹配：描述子 + Matcher
+
+流程：**每帧 / 参考图** 上提关键点与描述子 → **最近邻匹配** → **ratio** 或 **crossCheck** 滤误配 → **`findHomography`**（或 **`estimateAffinePartial2D`**）做几何一致性。适用于 **同一 UI 在不同窗口大小、轻微透视** 下仍要对齐的场景。
+
+### 6.1 检测与描述：`ORB` / `SIFT` 等
+
+```python
+import cv2
+
+orb = cv2.ORB_create(nfeatures=2000)
+kp1, des1 = orb.detectAndCompute(gray1, None)
+kp2, des2 = orb.detectAndCompute(gray2, None)
+```
+
+| 检测器（示例）    | 描述子                         | Matcher 距离                                         |
+| ----------------- | ------------------------------ | ---------------------------------------------------- |
+| **`ORB_create`**  | 二进制，`des.shape == (N, 32)` | **`NORM_HAMMING`**                                   |
+| **`SIFT_create`** | 浮点 128 维                    | **`NORM_L2`**，`Flann` 前常 **`astype(np.float32)`** |
+
+**`des` 可能为 `None`**（纹理极少的一整块纯色 UI）；匹配前必须判空。**`SURF`** 等多在 **`opencv-contrib-python`**，许可单独核对。
+
+### 6.2 `BFMatcher`
+
+```python
+bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+matches = sorted(bf.match(des1, des2), key=lambda m: m.distance)
+```
+
+**`crossCheck=True`**：互为最近邻才保留，适合快速抑制误配。
+
+### 6.3 `FlannBasedMatcher` + `knnMatch` + Lowe ratio
+
+关键点很多时用 FLANN；**SIFT** 常用 KD-Tree，**ORB** 常用 LSH。
+
+```python
+import numpy as np
+import cv2
+
+index_params = dict(algorithm=1, trees=5)  # FLANN_INDEX_KDTREE = 1
+flann = cv2.FlannBasedMatcher(index_params, dict(checks=50))
+pairs = flann.knnMatch(des1.astype(np.float32), des2.astype(np.float32), k=2)
+
+good = []
+for pair in pairs:
+    if len(pair) < 2:
+        continue
+    m, n = pair[0], pair[1]
+    if m.distance < 0.75 * n.distance:
+        good.append(m)
+```
+
+**ORB + LSH** 时 **`algorithm=6`**（**`FLANN_INDEX_LSH`**），并调 **`table_number` / `key_size`**；详见官方 FLANN 说明。
+
+### 6.4 几何校验与可视化
+
+```python
+import numpy as np
+import cv2
+
+if len(good) >= 4:
+    src = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+    dst = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+    H, mask = cv2.findHomography(src, dst, cv2.RANSAC, 5.0)
+    inliers = [m for m, ok in zip(good, mask.ravel()) if ok]
+
+vis = cv2.drawMatches(img1, kp1, img2, kp2, good[:80], None,
+                      flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+```
+
+调参或录制演示时可用 **`drawMatches`**；纯后台逻辑不必画图。**仅需相似变换（平移 + 旋转 + 均匀缩放）** 时可试 **`estimateAffinePartial2D`**。
+
+**资料**：[Features2D](https://docs.opencv.org/4.x/d8/d9b/group__features2d.html) · [BFMatcher](https://docs.opencv.org/4.x/d3/da1/classcv_1_1BFMatcher.html) · [FlannBasedMatcher](https://docs.opencv.org/4.x/db/d39/classcv_1_1FlannBasedMatcher.html)
+
+---
+
+## 7 实战小结（捕获 + 匹配）
+
+- **帧格式**：弄清捕获源是 **RGB 还是 BGR**，与 **`matchTemplate` 输入一致**。
+- **先 ROI 后全屏**：技能栏、小地图区域裁剪后再匹配，省 CPU、也少误检。
+- **固定 UI**：**灰度 + `TM_CCOEFF_NORMED` + 阈值** 通常最先尝试。
+- **尺度飘**：多尺度模板或 **ORB/SIFT**；**转视角 UI** 优先特征 + 单应或仿射校验。
+- **帧率**：不必每帧检测；状态机里 **降低检测频率** 很常见。
+
+深度学习检测（**`cv.dnn`**）、光流跟踪、感知哈希等不在本章三类经典匹配之内，可按任务另开文档。
+
+**资料**：[OpenCV Python 教程入口](https://docs.opencv.org/4.x/d6/d00/tutorial_py_root.html) · [模板匹配教程](https://docs.opencv.org/4.x/d4/dc6/tutorial_py_template_matching.html) · [特征匹配教程](https://docs.opencv.org/4.x/dc/dc3/tutorial_py_matcher.html)

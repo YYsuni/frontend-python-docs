@@ -1,0 +1,102 @@
+---
+title: argparse
+description: 标准库命令行解析：ArgumentParser、位置/可选参数、type/nargs/choices、动作与子命令；链回标准库导读与官方 argparse 手册。
+---
+
+[`argparse`](https://docs.python.org/zh-cn/3.12/library/argparse.html) 用声明式 API 把 `sys.argv` 解析成 **命名空间对象**（`Namespace`），自动生成 `--help` 与用法说明。适合「脚本 / 小工具 / CI 一步命令」；需要大量子命令、彩色帮助、可组合插件时，常见做法是升级到 `click` / `typer`。本文与 [标准库导读](./index)、[标准库简介里的 argparse 片段](../10-stdlib) 互补。
+
+## 最小用法
+
+```python
+import argparse
+
+parser = argparse.ArgumentParser(description="Example CLI")
+parser.add_argument("name", help="who to greet")
+parser.add_argument("-c", "--count", type=int, default=1, help="repeat count")
+args = parser.parse_args()
+for _ in range(args.count):
+    print(f"hello, {args.name}")
+```
+
+- **`parse_args()`**：默认读 `sys.argv[1:]`；测试时可传 `parse_args(["--count", "2", "world"])`。
+- **`-h` / `--help`**：由解析器自动生成，无需手写。
+
+## 位置参数与可选参数
+
+| 形式        | 含义                                          | 示例                                                          |
+| ----------- | --------------------------------------------- | ------------------------------------------------------------- |
+| 无 `-` 前缀 | **位置参数**，按顺序必填（除非 `nargs` 改变） | `parser.add_argument("src")`                                  |
+| 以 `-` 开头 | **可选参数**（长短选项可并存）                | `parser.add_argument("-v", "--verbose", action="store_true")` |
+
+- **`metavar`**：帮助里显示的占位名，不影响 `dest`。
+- **`dest`**：结果属性名；长选项默认把 `--foo-bar` 规范成 `foo_bar`。
+
+## `add_argument` 常用关键字
+
+| 参数            | 作用                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------ |
+| `type=`         | 把字符串转成目标类型；可传 `int`、`float`、`open`、或任意可调用                      |
+| `default=`      | 未出现时使用的值；常与 `type` 搭配                                                   |
+| `required=True` | **仅对可选参数** 表示「必须出现」                                                    |
+| `nargs`         | 消费个数：`N`、`?`（0 或 1）、`*`（0 或多个）、`+`（1 或多个）、`argparse.REMAINDER` |
+| `choices=`      | 限定允许值序列；越界会报错并带清晰提示                                               |
+| `const`         | 常与 `nargs="?"` 和可选参数组合，表示「有标志无值时用」                              |
+
+## 常用 `action`
+
+| `action`                     | 效果                                          |
+| ---------------------------- | --------------------------------------------- |
+| `store`（默认）              | 存字符串或 `type` 转换结果                    |
+| `store_true` / `store_false` | 出现标志则 `True`/`False`，否则默认相反值     |
+| `append`                     | 同一选项可出现多次，得到列表                  |
+| `count`                      | 统计 `-v`、`-vv` 出现次数（常与 `default=0`） |
+| `version`                    | 与 `version="1.0"` 配合，打印后退出           |
+
+## 互斥与参数组
+
+```python
+group = parser.add_mutually_exclusive_group()
+group.add_argument("--quiet", action="store_true")
+group.add_argument("--verbose", action="store_true")
+```
+
+同一组里至多选一个；需要「逻辑分组」但可并存时，用 `add_argument_group(title=...)` 只影响帮助排版。
+
+## 子命令：`add_subparsers`
+
+```python
+parser = argparse.ArgumentParser(prog="tool")
+sub = parser.add_subparsers(dest="command", required=True)
+p_init = sub.add_parser("init", help="init workspace")
+p_init.add_argument("path")
+p_run = sub.add_parser("run", help="run task")
+p_run.add_argument("--dry-run", action="store_true")
+args = parser.parse_args()
+```
+
+- **`dest`**：记录子命令名；**`required=True`（3.7+）** 避免用户忘了写子命令却静默通过。
+- 每个 `add_parser` 返回**子解析器**，继续 `add_argument` 即可。
+
+## 帮助文案与用法
+
+| API                                           | 用途                                               |
+| --------------------------------------------- | -------------------------------------------------- |
+| `ArgumentParser(description=..., epilog=...)` | 开头说明、末尾补充（如许可、示例）                 |
+| `formatter_class=`                            | `ArgumentDefaultsHelpFormatter` 在帮助里打印默认值 |
+| `add_argument(..., help="...")`               | 单参数说明                                         |
+
+## 只解析已知参数
+
+```python
+args, rest = parser.parse_known_args()
+```
+
+适合「本模块只认一部分选项，其余原样交给子进程 / 另一库」；**不要**与期望「未知即报错」的严格 CLI 混用同一套心智。
+
+## 易错点（排错速记）
+
+- **`type=` 抛出的异常**会包装成用户友好的 CLI 错误；自定义 `type` 时确保错误信息可读。
+- **`nargs="*"` 且 `default` 未设**：未出现该可选参数时，默认是 **`None`**，不是 `[]`；需要空列表要显式 `default=[]`。
+- **布尔坑**：`type=bool` 几乎总是错的（非空字符串都变 `True`）；用 `action="store_true"` 或显式 `choices` / 自定义解析。
+
+资料：[argparse 文档](https://docs.python.org/zh-cn/3.12/library/argparse.html)

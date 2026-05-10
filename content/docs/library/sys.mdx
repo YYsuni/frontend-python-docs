@@ -1,0 +1,102 @@
+---
+title: sys
+description: 标准库系统相关接口：argv、stdin/stdout/stderr、exit、path、异常钩子、版本与平台信息、递归深度与实现细节；链回标准库导读与官方 sys 手册。
+---
+
+[`sys`](https://docs.python.org/zh-cn/3.12/library/sys.html) 提供 **解释器状态与运行时环境** 的入口：命令行参数、标准流、退出码、模块搜索路径、版本/平台字符串，以及少量与 CPython 实现强绑定的内省。本文与 [标准库导读](./index)、[标准库简介](../10-stdlib) 互补；写 CLI 时常与 [`argparse`](./argparse) 一起出现（`parse_args` 默认读 `sys.argv[1:]`）。
+
+## 命令行与标准 I/O
+
+```python
+import sys
+
+# 与 argparse 默认行为一致：脚本名在 argv[0]，其余为参数
+for i, arg in enumerate(sys.argv):
+    print(i, arg)
+
+sys.stdout.write("ok\n")
+sys.stderr.write("warn\n")
+line = sys.stdin.readline()
+```
+
+| 对象 / 属性 | 含义 |
+| ----------- | ---- |
+| `argv` | 参数列表，`argv[0]` 为脚本路径或 `-c` 时的字符串 |
+| `stdin` / `stdout` / `stderr` | 标准输入/输出/错误，文本模式时多为 UTF-8（受环境影响） |
+
+- **重定向**：`print(..., file=sys.stderr)` 比直接写 `stderr` 更常见；测试里可用 `io.StringIO` 替换流做捕获。
+
+## 退出进程
+
+```python
+import sys
+sys.exit(0)   # 成功
+sys.exit(1)   # 非零表示失败（惯例，非语言强制）
+sys.exit("usage: ...")  # 非整数：视为失败，消息打印到 stderr
+```
+
+- **`SystemExit`**：`exit()` 抛出该异常；在「普通业务代码」里被捕获会阻止进程结束，一般只应在顶层或测试夹具里刻意捕获。
+- **`quit` / `exit`「函数」**：交互式里方便，脚本里应优先用 `sys.exit`。
+
+## `sys.path` 与导入
+
+| 要点 | 说明 |
+| ---- | ---- |
+| 内容 | 字符串列表，**import 按顺序**在这些目录里找包/模块 |
+| 首项 | 常含**脚本所在目录**或 `""`（当前工作目录相关），再含标准库路径等 |
+| 修改 | `sys.path.insert(0, "/extra")` 可临时优先某目录；持久方案应用 `PYTHONPATH` 或安装成包 |
+
+- **不要**假设 `path[0]` 永远是脚本目录：`-m`、冻结应用、嵌入解释器时行为不同。
+
+## 异常与解释器钩子
+
+| API | 用途 |
+| --- | ---- |
+| `exc_info()` | 当前线程**正在处理**的异常 `(type, value, traceback)`，无则 `(None, None, None)` |
+| `last_type` / `last_value` / `last_traceback` | **仅交互式** 最近一次未捕获异常（脚本里勿依赖） |
+| `excepthook` | 未捕获异常的打印钩子，可替换以接日志/上报（注意别递归失败） |
+
+- 在 `except` 块外调用 `exc_info()` 可能拿到「空」或旧信息；需要栈时通常在 `except` 内用 `traceback` 模块。
+
+## 版本、实现与可执行文件
+
+| 属性 | 典型用途 |
+| ---- | -------- |
+| `version` | 人类可读版本串 |
+| `version_info` | 命名元组，便于 `if sys.version_info >= (3, 10):` |
+| `hexversion` | 单整数比较版本 |
+| `implementation` | `name`、`version` 等（非 CPython 时区分实现） |
+| `executable` | 当前解释器二进制路径 |
+| `prefix` / `base_prefix` | 安装前缀（虚拟环境里常见成对差异） |
+
+## 平台与编码
+
+| 属性 | 说明 |
+| ---- | ---- |
+| `platform` | 平台标识字符串，**不要做唯一真值**，细节以 `os.name`、`sysconfig` 为准 |
+| `getdefaultencoding()` | 默认 Unicode 编解码名（多为 `utf-8`） |
+| `getfilesystemencoding()` / `getfilesystemencodeerrors()` | 文件名/路径字节 ↔  str 时的编码策略 |
+
+## 限制与内省（常用）
+
+| API | 说明 |
+| --- | ---- |
+| `maxsize` | 与 `list` 长度等相关的理论上限，常作「大整数哨兵」 |
+| `getrecursionlimit()` / `setrecursionlimit()` | 递归深度；调太大可能栈溢出崩溃 |
+| `getsizeof(obj)` | **浅层** C 层大小估计，非「对象图总内存」 |
+| `intern(s)` | 驻留字符串，节省字典键等场景的内存；仅对生命周期长的键有意义 |
+| `is_finalizing()` | 解释器关闭阶段为真，此时对象析构顺序不可靠 |
+
+## 调试与标志（了解即可）
+
+- **`flags`**、`int_info`、`float_info`：解释器编译选项与整型/浮点实现细节。
+- **`modules`**：已加载模块的字典；动态玩法多，日常少直接改。
+
+## 易错点（排错速记）
+
+- **`sys.argv` 全是字符串**：需要 `int()` 等自行转换，或交给 `argparse`。
+- **修改 `sys.path`**：只影响当前进程；多进程/子解释器不自动继承你的内存修改。
+- **`stdout` 缓冲**：管道/重定向时常见行缓冲或全缓冲；需要即时输出用 `flush=True` 或 `PYTHONUNBUFFERED=1`。
+- **不要**用 `platform` 单独判定「是不是 Windows」：更稳妥是 `os.name == "nt"` 或 `sys.platform` 配合文档。
+
+资料：[sys 文档](https://docs.python.org/zh-cn/3.12/library/sys.html)
