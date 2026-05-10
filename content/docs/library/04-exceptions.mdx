@@ -1,0 +1,121 @@
+---
+title: 4. 内置异常
+description: BaseException 与 Exception 分层、异常链、常用内置异常与 OSError 子类、警告与异常组；表格导读，层次以官方为准。
+---
+
+所有异常均为 **`BaseException`** 子类的实例；`try` / `except SomeType` 会捕获 **`SomeType` 及其子类**。
+
+## 1 `BaseException` 与 `Exception`
+
+| 类型            | 要点                                                                                                                                                                        |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BaseException` | 所有内置异常的根；**不要**让用户异常直接继承它（应继承 **`Exception`**）。`SystemExit`、`KeyboardInterrupt`、`GeneratorExit` 等挂在这里，避免被裸 `except Exception` 吃掉。 |
+| `Exception`     | **常规错误**的基类；自定义异常应从这里派生。`except Exception` 适合「记录日志后继续」的兜底，但不替代具体类型处理。                                                         |
+
+## 2 异常上下文与链
+
+| 属性 / 语法                    | 要点                                                                                               |
+| ------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `__context__`                  | 在处理旧异常时又抛新异常时，解释器把旧异常记在新异常的 **`__context__`**（隐式链）。               |
+| `raise new from orig`          | 显式设置 **`__cause__`**；`from` 右侧须为异常或 **`None`**。                                       |
+| `raise new from None`          | 设置 **`__suppress_context__`**，回溯展示上优先突出新异常目的，旧异常仍留在 `__context__` 供调试。 |
+| 回溯展示                       | 有 **`__cause__`** 时总是展示；**`__context__`** 仅在 **`__cause__` 为 `None`** 且未抑制时展示。   |
+| `add_note(note)` / `__notes__` | 3.11+：向异常追加说明字符串，回溯中在异常消息之后显示；`note` 须为 `str`。                         |
+
+## 3 继承内置异常时的注意点
+
+| 建议   | 内容                                                                                  |
+| ------ | ------------------------------------------------------------------------------------- |
+| 单基类 | 用户异常**只继承一个**内置异常类型，避免多基类与 `args` / 内存布局冲突。              |
+| 多继承 | 部分内置异常由 C 实现、布局特殊，**避免**多继承多个异常类型；版本升级可能引入新冲突。 |
+
+## 4 基类（节选）
+
+| 异常类            | 用途                                                                          |
+| ----------------- | ----------------------------------------------------------------------------- |
+| `BaseException`   | 根基类。                                                                      |
+| `Exception`       | 非系统退出类异常的基类。                                                      |
+| `ArithmeticError` | 算术错误基类：`OverflowError`、`ZeroDivisionError`、`FloatingPointError` 等。 |
+| `BufferError`     | 缓冲区相关操作无法完成。                                                      |
+| `LookupError`     | 索引/键无效：`IndexError`、`KeyError`。                                       |
+
+## 5 常见具体异常
+
+| 异常类                                          | 典型场景                                                                                                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AssertionError`                                | `assert` 失败。                                                                                                                                               |
+| `AttributeError`                                | 属性读/写失败；对象根本不支持属性时多为 **`TypeError`**。3.10+ 构造器可有 **`name`**、**`obj`** 关键字参数。                                                  |
+| `EOFError`                                      | `input()` 遇 EOF 无数据；某些 `io` 读方法则返回空串而非抛此异常。                                                                                             |
+| `ImportError`                                   | `import` 失败；`from ... import` 找不到名称。可有 **`name`**、**`path`**。                                                                                    |
+| `ModuleNotFoundError`                           | `ImportError` 子类：模块路径无法解析等（3.6+）。                                                                                                              |
+| `IndexError`                                    | 序列下标越界（切片会静默截断到合法范围；非整数下标为 **`TypeError`**）。                                                                                      |
+| `KeyError`                                      | 映射中缺少键；`dict.get` 不抛。                                                                                                                               |
+| `NameError`                                     | 未绑定的**非限定**名；3.10+ 可有 **`name`**。                                                                                                                 |
+| `UnboundLocalError`                             | 局部变量尚未赋值就被引用；**`NameError`** 子类。                                                                                                              |
+| `TypeError`                                     | 操作/函数用于不支持的类型；**不支持的操作**也可由用户抛出。参数**类型**错多用 `TypeError`，**值**错多用 **`ValueError`**。                                    |
+| `ValueError`                                    | 类型对但值不合适、且没有更精确异常时。                                                                                                                        |
+| `ZeroDivisionError`                             | 除法或取余第二操作数为 0。                                                                                                                                    |
+| `RuntimeError`                                  | 其它类别都不归属时的兜底；**`NotImplementedError`**、**`RecursionError`** 等为其子类。                                                                        |
+| `NotImplementedError`                           | 抽象方法未实现等；**不要**与常量 **`NotImplemented`** 混用。                                                                                                  |
+| `RecursionError`                                | 超过最大递归深度（3.5+；此前为 `RuntimeError`）。                                                                                                             |
+| `StopIteration`                                 | 迭代器耗尽；`next()` 等。生成器返回值会包进 **`StopIteration.value`**；在生成器体内抛 `StopIteration` 会按 **PEP 479** 转为 **`RuntimeError`**（3.7+ 默认）。 |
+| `StopAsyncIteration`                            | 异步迭代停止（3.5+）。                                                                                                                                        |
+| `GeneratorExit`                                 | 生成器/协程关闭；继承 **`BaseException`**，不是 `Exception`。                                                                                                 |
+| `KeyboardInterrupt`                             | 用户中断（如 Ctrl+C）；继承 **`BaseException`**。                                                                                                             |
+| `SystemExit`                                    | **`sys.exit()`** 引发；继承 **`BaseException`**；未处理则解释器退出，可能**无**完整回溯。                                                                     |
+| `MemoryError`                                   | 内存耗尽但尚可挽救时。                                                                                                                                        |
+| `ReferenceError`                                | 弱引用目标已回收等。                                                                                                                                          |
+| `SystemError`                                   | 解释器内部错误；若怀疑 CPython bug 应带版本与复现上报。                                                                                                       |
+| `SyntaxError` / `IndentationError` / `TabError` | 解析/缩进错误；`SyntaxError` 含 **`filename`**、**`lineno`**、**`offset`** 等（3.10+ 还有 **`end_lineno`**、**`end_offset`**）。                              |
+| `UnicodeError` 及子类                           | 编码/解码/转写问题；子类带 **`encoding`**、**`reason`**、**`object`**、**`start`**、**`end`** 等。                                                            |
+
+## 6 `OSError` 与 OS 相关子类
+
+| 要点      | 内容                                                                                                                                                                 |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OSError` | 系统调用失败（文件未找到、权限不足等）；常带 **`errno`**、**`strerror`**、**`filename`**（及 **`filename2`**）等。构造实际返回类型常为**更具体的子类**（实现细节）。 |
+| 历史别名  | **`EnvironmentError`**、**`IOError`**、**`WindowsError`**（Windows）在 3.3+ 均为 **`OSError`** 的别名。                                                              |
+
+| 子类（节选）                                                                                     | 典型 `errno` / 场景                                                             |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `BlockingIOError`                                                                                | 非阻塞下会阻塞：`EAGAIN`、`EWOULDBLOCK` 等；可有 **`characters_written`**。     |
+| `ChildProcessError`                                                                              | 子进程操作失败，如 **`ECHILD`**。                                               |
+| `BrokenPipeError` / `ConnectionAbortedError` / `ConnectionRefusedError` / `ConnectionResetError` | **`ConnectionError`** 子类，管道/套接字对端关闭、拒绝、重置等。                 |
+| `FileExistsError` / `FileNotFoundError`                                                          | **`EEXIST`** / **`ENOENT`** 等。                                                |
+| `InterruptedError`                                                                               | **`EINTR`**；3.5+ 许多系统调用被信号中断时会**重试**而非直接抛（**PEP 475**）。 |
+| `IsADirectoryError` / `NotADirectoryError`                                                       | **`EISDIR`** / **`ENOTDIR`**。                                                  |
+| `PermissionError`                                                                                | **`EACCES`**、**`EPERM`**、WASI 上 **`ENOTCAPABLE`**（3.11.1+ 映射）。          |
+| `ProcessLookupError`                                                                             | **`ESRCH`**。                                                                   |
+| `TimeoutError`                                                                                   | **`ETIMEDOUT`**。                                                               |
+
+## 7 警告类
+
+均继承 **`Warning`** → **`Exception`**；与 **`warnings`** 过滤器配合。常见：`UserWarning`、`DeprecationWarning`、`PendingDeprecationWarning`、`SyntaxWarning`、`RuntimeWarning`、`FutureWarning`、`ImportWarning`、`UnicodeWarning`、`EncodingWarning`（3.10+）、`BytesWarning`、`ResourceWarning` 等。默认过滤器会**忽略**其中多类；**开发模式**下更易看见。
+
+| 实践建议 | 内容                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------ |
+| 库作者   | 弃用 API 用 **`DeprecationWarning`**（面向开发者）；若警告面向**终端用户**行为变化，用 **`FutureWarning`**。 |
+| 应用     | 用 **`warnings.filterwarnings`** 或环境变量控制展示与是否升级为错误。                                        |
+
+## 8 异常组（3.11+）
+
+| 类型                                       | 要点                                                                                                                   |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `BaseExceptionGroup`                       | 包一组任意 **`BaseException`**；与 **`except*`** 配合按类型拆分处理。                                                  |
+| `ExceptionGroup`                           | 只包 **`Exception`** 子类；**`except Exception`** 会捕获 **`ExceptionGroup`**，**不会**捕获 **`BaseExceptionGroup`**。 |
+| 构造器                                     | 若全是 `Exception` 子类，**`BaseExceptionGroup(...)`** 可能自动得到 **`ExceptionGroup`** 实例。                        |
+| `message` / `exceptions`                   | 只读：说明字符串与异常元组。                                                                                           |
+| `subgroup(condition)` / `split(condition)` | 按条件取子组；`split` 返回 **`(match, rest)`**。                                                                       |
+| `derive(excs)`                             | 子类拆分时用于保留类型；需重写以让 `subgroup`/`split` 返回正确子类。                                                   |
+
+## 9 前端对照
+
+| 概念               | Python                                                                     |
+| ------------------ | -------------------------------------------------------------------------- |
+| `throw` / `reject` | **`raise`**；可 `raise` 内置或自定义异常类实例。                           |
+| `Error` 基类       | 对应分层：**`Exception`** 处理业务错误；**`BaseException`** 含退出与中断。 |
+| 带 `cause` 的链    | **`raise ... from ...`** 对应显式 **`cause`**。                            |
+
+---
+
+资料： [内置异常](https://docs.python.org/zh-cn/3.12/library/exceptions.html)

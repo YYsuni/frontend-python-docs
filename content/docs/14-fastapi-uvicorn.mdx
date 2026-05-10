@@ -1,6 +1,6 @@
 ---
 title: FastAPI 与 uvicorn
-description: FastAPI 应用结构、路由与校验、依赖注入入门，以及 uvicorn 开发/生产常用参数与多 worker 部署心智。
+description: FastAPI 应用对象构造参数与常用方法速查、路由与校验、依赖注入入门，以及 uvicorn CLI 与 uvicorn.run 对照、开发/生产部署心智。
 ---
 
 FastAPI 运行在 **ASGI** 应用协议之上（底层常用 **Starlette**）；**uvicorn** 是常用的 ASGI **服务器实现**，负责监听端口、管理连接并把请求交给 `app`。本章默认你已读过 [Web 服务与常用框架](./13-server-sdk) 里的 WSGI/ASGI 对照。
@@ -47,11 +47,9 @@ from pydantic import BaseModel, Field
 
 app = FastAPI()
 
-
 class Item(BaseModel):
     name: str = Field(min_length=1)
     price: float = Field(gt=0)
-
 
 @app.get("/items/{item_id}")
 def read_item(
@@ -59,7 +57,6 @@ def read_item(
     q: Annotated[str | None, Query(max_length=50)] = None,
 ):
     return {"item_id": item_id, "q": q}
-
 
 @app.post("/items")
 def create_item(item: Item):
@@ -83,10 +80,8 @@ from fastapi import Depends, FastAPI
 
 app = FastAPI()
 
-
 def pagination(skip: int = 0, limit: int = 20) -> tuple[int, int]:
     return skip, limit
-
 
 @app.get("/feed")
 def feed(page: Annotated[tuple[int, int], Depends(pagination)]):
@@ -152,11 +147,40 @@ if __name__ == "__main__":
 
 ---
 
-## 8 小结检查清单
+## 8 API 速查：`FastAPI` 应用对象与 uvicorn
 
-- [ ] `main:app` 模块路径是否与实际文件名、工作目录一致（避免 `ModuleNotFoundError`）。
-- [ ] 生产是否关闭 `--reload`，worker 数是否与 CPU、阻塞比例匹配。
-- [ ] 是否在反向代理后正确配置 **Forwarded / Proxy** 相关选项（HTTPS 链接、IP 记录）。
-- [ ] async 路由里是否误用了长时间阻塞调用。
+### `FastAPI(...)` 常用构造参数
+
+| 参数                                         | 说明                                                                                 |
+| -------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **`title` / `version` / `description`**      | 出现在自动生成的 OpenAPI 元数据与 `/docs`、`/redoc` 中。                             |
+| **`docs_url` / `redoc_url` / `openapi_url`** | 文档与 schema 路径；设为 **`None`** 可关闭对应端点（例如生产不想暴露 Swagger）。     |
+| **`redirect_slashes`**                       | 是否在路径缺少或多余 **`/`** 时做重定向（默认 **`True`**；前后端约定路由时要注意）。 |
+
+### `app` 实例：路由与挂载常用方法
+
+| 名称                                                                 | 说明                                                               |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| **`get` / `post` / `put` / `delete` / `patch` / `head` / `options`** | 按 HTTP 方法注册路由；返回**装饰器**，装饰下方的路由函数。         |
+| **`websocket(path)`**                                                | 注册 WebSocket 端点（处理函数一般为 **`async def`**）。            |
+| **`include_router(router, prefix=..., tags=...)`**                   | 挂载 **`APIRouter`**，做大模块拆分与统一前缀。                     |
+| **`mount(path, app)`**                                               | 在某路径前缀下挂载**另一个 ASGI 应用**（如静态站、子服务）。       |
+| **`middleware("http")(callable)`**                                   | 注册 HTTP 中间件（注意：后添加的中间件**先**执行，类似洋葱外层）。 |
+
+**提示**：**`Query` / `Body` / `Depends`** 等来自 **`fastapi`** 包的导入，不是 `app` 上的方法；类型注解 + 这些工具共同驱动校验与 OpenAPI。
+
+### uvicorn：CLI 与 `uvicorn.run`（对照）
+
+§6 表格主要是 **命令行**；代码里 **`uvicorn.run(...)`** 常用参数与 CLI 含义一致，可按下表对应：
+
+| `uvicorn.run` 常用参数 | CLI 对应            | 说明                                                                              |
+| ---------------------- | ------------------- | --------------------------------------------------------------------------------- |
+| 第一个参数 **`app`**   | `main:app`          | 一般为 **`"模块路径:变量名"`** 字符串（懒加载），或直接传入 **ASGI 可调用对象**。 |
+| **`host` / `port`**    | `--host` / `--port` | 监听地址与端口。                                                                  |
+| **`reload`**           | `--reload`          | 开发热重载；**勿在生产开启**。                                                    |
+| **`workers`**          | `--workers`         | 进程数；**与 `reload=True` 互斥**。                                               |
+| **`log_level`**        | `--log-level`       | 如 **`info`**、`warning`。                                                        |
+
+---
 
 **资料**：[FastAPI 中文文档](https://fastapi.tiangolo.com/zh/) · [uvicorn](https://www.uvicorn.org/) · [Starlette](https://www.starlette.io/)

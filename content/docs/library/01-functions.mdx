@@ -1,0 +1,134 @@
+---
+title: 1. 内置函数
+description: 无需 import 的全局可调用对象。
+---
+
+Python 解释器内置了大量**函数与类型构造器**，任何模块里都能直接使用。官方按**字母序**逐条定义，完整签名与边界情况以 [内置函数（3.12 中文版）](https://docs.python.org/zh-cn/3.12/library/functions.html) 为准。本文按主题分节，**每节用表格列表**导读，并链回 [标准库概览](./index)。
+
+不少名字写在「函数」一章里，实际是**类型构造器**（如 `list`、`dict`），调用后得到类的实例。
+
+## 1 类型与字面量构造
+
+| 内置名                                                     | 作用与要点                                                                                                |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `bool(x=False)`                                            | 标准真值测试后返回 `True`/`False`；`bool` 是 `int` 子类，仅两实例，不能再子类化。                         |
+| `int(x=0)` / `int(str, /, base=10)`                        | 从数字或字符串构造整数；`base=0` 时按字面量解析 `0b`/`0o`/`0x`。3.11+ 字符串转 `int` 有长度限制，防 DoS。 |
+| `float(x=0.0)` / `float(str)`                              | 从数字或字符串构造浮点；支持 `inf`/`nan` 等拼写。                                                         |
+| `complex(...)`                                             | 从字符串或实部/虚部构造复数；规则见官方。                                                                 |
+| `str(object='')` / `str(bytes, encoding, errors='strict')` | 转展示字符串，或把 `bytes` 按编码解码为 `str`（角色上略像 `TextDecoder` + `String()`）。                  |
+| `bytes` / `bytearray`                                      | 不可变 / 可变字节序列；文本模式 `open` 得 `str`，二进制模式得 `bytes`。                                   |
+| `memoryview(obj)`                                          | 零拷贝查看缓冲区，配合二进制协议。                                                                        |
+| `list` / `tuple` / `dict` / `set` / `frozenset`            | 从可迭代对象等构造容器；`frozenset` 为不可变集合，可作 `dict` 键。                                        |
+| `slice(stop)` / `slice(start, stop, step)`                 | 切片对象，供 `seq[start:stop:step]` 与第三方数组协议使用。                                                |
+| `range(stop)` / `range(start, stop[, step])`               | 惰性整数序列；要数组式物化用 `list(range(...))`。                                                         |
+| `object()`                                                 | 无参；所有类基类。`object` 实例**没有** `__dict__`，不能挂任意属性。                                      |
+
+## 2 真值、聚合与比较
+
+| 内置名                                                 | 作用与要点                                                            |
+| ------------------------------------------------------ | --------------------------------------------------------------------- |
+| `all(iterable)`                                        | 所有元素为真（或 **空** 可迭代）则 `True`。                           |
+| `any(iterable)`                                        | 任一元素为真则 `True`；**空** 可迭代则 `False`。                      |
+| `min(iterable, *, key=None)` / `min(a, b, *args, ...)` | 最小元素；可传多个标量。空 iterable 且无 `default` 会 `ValueError`。  |
+| `max(...)`                                             | 同上，取最大；支持 `key=`；`max` 独有 `default=` 处理空序列（3.4+）。 |
+
+## 3 迭代与惰性工具
+
+| 内置名                                            | 作用与要点                                                                          |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `len(s)`                                          | 元素个数；极大逻辑长度（如超大 `range`）可能 `OverflowError`。                      |
+| `iter(object)`                                    | 返回迭代器（`__iter__` 或序列 `__getitem__` 协议）。                                |
+| `iter(callable, sentinel)`                        | 反复 `callable()`，等于 `sentinel` 时停；适合按块读到文件尾。                       |
+| `next(iterator[, default])`                       | 调用 `iterator.__next__()`；有 `default` 时在耗尽时返回该值而非抛 `StopIteration`。 |
+| `enumerate(iterable, start=0)`                    | 产出 `(索引, 值)`，等价「带下标的遍历」。                                           |
+| `zip(*iterables, strict=False)`                   | 并行对齐为元组流；**等长建议 `strict=True`（3.10+）**，否则短侧静默截断。           |
+| `map(function, iterable, ...)`                    | 惰性映射；多 iterable 时最短耗尽即停。                                              |
+| `filter(function, iterable)`                      | 惰性过滤；`function` 为 `None` 时去掉假值项。                                       |
+| `reversed(seq)`                                   | 反向迭代器；需 `__reversed__` 或序列协议。                                          |
+| `sorted(iterable, /, *, key=None, reverse=False)` | **返回新列表**，稳定排序；与 `list.sort` 原地排序区分。                             |
+| `sum(iterable, /, start=0)`                       | 求和；**勿用于拼字符串**（用 `''.join`）；高精度浮点见 `math.fsum`。                |
+| `aiter(async_iterable)`                           | 异步可迭代对象 → 异步迭代器（3.10+）。                                              |
+| `anext(async_iterator[, default])`                | 异步版 `next`（3.10+），用于 `async for` 底层。                                     |
+
+## 4 字符串、表示与数值辅助
+
+| 内置名                          | 作用与要点                                                                                                |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `repr(object)`                  | 供解释器/开发者读的字符串；理想情况可被 `eval` 还原（多数内置类型如此）。                                 |
+| `ascii(object)`                 | 类似 `repr`，非 ASCII 用 `\x`/`\u`/`\U` 转义。                                                            |
+| `format(value, format_spec='')` | 调用 `type(value).__format__`；格式串见「格式规格迷你语言」。                                             |
+| `chr(i)`                        | 码位 → 单字符 Unicode 字符串；`ord` 的逆。                                                                |
+| `ord(c)`                        | 单字符 → 整数码位。                                                                                       |
+| `bin(x)` / `oct(x)` / `hex(x)`  | 整数 → 带 `0b`/`0o`/`0x` 前缀的字符串，且为合法 Python 表达式。                                           |
+| `abs(x)`                        | 绝对值；复数返回模。                                                                                      |
+| `pow(base, exp, mod=None)`      | 幂；三参数为模幂（比先 `**` 再 `%` 更高效）。                                                             |
+| `round(number[, ndigits])`      | 银行家舍入到偶数；**浮点二进制误差**可导致 `round(2.675, 2)` 非直觉结果，见官方「浮点算术：争议和限制」。 |
+
+## 5 反射、属性与命名空间
+
+| 内置名                             | 作用与要点                                                                                |
+| ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `isinstance(obj, classinfo)`       | 是否实例（含子类）；`classinfo` 可为类型元组或 **union**（3.10+）。日常类型检查优先用它。 |
+| `issubclass(class, classinfo)`     | 子类关系；`classinfo` 可为元组或 union。                                                  |
+| `callable(object)`                 | 是否可调用；`True` 不保证调用一定成功。                                                   |
+| `getattr(object, name[, default])` | 动态读属性；`name` 可为非标识符字符串。                                                   |
+| `hasattr(object, name)`            | 是否有该属性名（内部用 `getattr` 试抛 `AttributeError`）。                                |
+| `setattr(object, name, value)`     | 动态写属性。                                                                              |
+| `delattr(object, name)`            | 动态删属性，等价 `del obj.name`（`name` 为字符串）。                                      |
+| `dir([object])`                    | 无参：当前局部名；有参：尽力列属性名，**不保证完整/稳定**，偏交互式。                     |
+| `vars([object])`                   | 返回 `__dict__`；无参时类似 `locals()`。无 `__dict__`（如 `__slots__`）则 `TypeError`。   |
+| `globals()`                        | 当前模块全局命名空间 `dict`。                                                             |
+| `locals()`                         | 当前局部符号表；**不要指望改返回的 dict 能改局部变量**（官方备注）。                      |
+| `id(object)`                       | 对象生命周期内唯一且恒定的整数标识。                                                      |
+| `hash(object)`                     | 可哈希则返回整数；自定义 `__hash__` 返回值可能被截断到机器字长。                          |
+
+**与 JavaScript `typeof` 的对照（表格）**
+
+| JavaScript                            | Python 侧建议                                                                                             |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `typeof null === 'object'` 等历史行为 | 无直接对应；用 **`isinstance(x, T)`** 判断「是不是某抽象/具体类型」，要精确运行时类型再用 **`type(x)`**。 |
+
+## 6 I-O 与调试
+
+| 内置名                                                                                                    | 作用与要点                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `print(*objects, sep=' ', end='\n', file=None, flush=False)`                                              | 写到文本流（默认 `stdout`）；`file` 需 `write(str)`。**不要**对二进制流用 `print`，应 `write(bytes)`。                                                                     |
+| `input([prompt])`                                                                                         | 可选提示后从 stdin 读一行字符串；EOF → `EOFError`。                                                                                                                        |
+| `open(file, mode='r', buffering=-1, encoding=None, errors=None, newline=None, closefd=True, opener=None)` | 打开路径或 fd；`r`/`w`/`a`/`x` 与 `b`/`t`/`+` 组合。文本未指定 `encoding` 时用平台/区域默认；脚本建议显式 **`encoding='utf-8'`**。缓冲、`newline`、`opener` 等见官方长表。 |
+| `breakpoint(*args, **kwargs)`                                                                             | 3.7+；调 `sys.breakpointhook()`，默认可进 `pdb`；可用 `PYTHONBREAKPOINT` 环境变量。                                                                                        |
+| `help([request])`                                                                                         | 启动内置帮助；无参交互；字符串/对象查文档；依赖 `site` 注入。                                                                                                              |
+
+## 7 面向对象与描述器
+
+| 内置名                                                | 作用与要点                                                                           |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `@classmethod`                                        | 首参为类对象 `cls`；可在类或实例上调用；与 Java/C++ **静态方法**不同。               |
+| `@staticmethod`                                       | 无隐式首参；类/实例上调用均可。                                                      |
+| `property(fget=None, fset=None, fdel=None, doc=None)` | 描述器；常用 `@property` / `@name.setter` / `@name.deleter` 实现计算属性或只读字段。 |
+| `super()` / `super(type[, object_or_type])`           | 零参形式仅在方法体内由编译器补全；沿 **MRO** 委托父类/兄弟类，适合协作多重继承。     |
+
+## 8 动态执行与安全
+
+| 内置名                                                                      | 作用与要点                                                              |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `compile(source, filename, mode, flags=0, dont_inherit=False, optimize=-1)` | 编译源码或 AST 为代码对象；`mode` 为 `'eval'` / `'exec'` / `'single'`。 |
+| `eval(expression, globals=None, locals=None)`                               | 只对**表达式**求值；**禁止**对用户可控字符串直接使用。                  |
+| `exec(object, globals=None, locals=None, /, *, closure=None)`               | 执行**语句**序列；同样有任意代码执行风险。                              |
+
+| 说明项                      | 内容                                                                                                     |
+| --------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `globals` 与 `__builtins__` | 若传入的 `globals` 不含 `__builtins__` 键，解释器会注入内置模块字典；可用来限制被 eval/exec 可见的内置。 |
+| 安全替代                    | 仅需解析字面量时用 **`ast.literal_eval`**，不要用 `eval` 当 JSON 解析器。                                |
+
+## 9 其它常用
+
+| 内置名                                                              | 作用与要点                                                                    |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `type(object)`                                                      | 返回对象的类型（`type` 对象）。                                               |
+| `type(name, bases, dict, **kwds)`                                   | 三参形式动态创建类，等价部分 `class` 语句能力。                               |
+| `divmod(a, b)`                                                      | `(a // b, a % b)`（整数）；浮点另有约定，见官方。                             |
+| `__import__(name, globals=None, locals=None, fromlist=(), level=0)` | `import` 语句底层；**日常用 `importlib.import_module`**，勿手写业务导入逻辑。 |
+
+---
+
+资料：[内置函数](https://docs.python.org/zh-cn/3.12/library/functions.html)
