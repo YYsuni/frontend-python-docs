@@ -1,0 +1,162 @@
+---
+title: FastAPI 与 uvicorn
+description: FastAPI 应用结构、路由与校验、依赖注入入门，以及 uvicorn 开发/生产常用参数与多 worker 部署心智。
+---
+
+FastAPI 运行在 **ASGI** 应用协议之上（底层常用 **Starlette**）；**uvicorn** 是常用的 ASGI **服务器实现**，负责监听端口、管理连接并把请求交给 `app`。本章默认你已读过 [Web 服务与常用框架](./13-server-sdk) 里的 WSGI/ASGI 对照。
+
+## 1 最小项目：`main.py` + `app`
+
+```python
+# main.py
+from fastapi import FastAPI
+
+app = FastAPI(title="Demo")
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+```
+
+安装与启动：
+
+```bash
+pip install fastapi uvicorn
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```
+
+- **`main:app`**：`main` 是模块名（对应 `main.py`），`app` 是 ASGI 应用对象变量名。
+- **`--reload`**：开发改代码自动重启；**生产务必关闭**（额外开销且不安全）。
+
+浏览器打开 `http://127.0.0.1:8000/docs` 可看到自动生成的 Swagger UI。
+
+---
+
+> **`@app.get` 从哪来？** `app = FastAPI()` 得到的 `app` 是 **FastAPI 类的实例**；`.get`、`.post`、`.put`、`.delete` 等是实例上的**路由注册方法**。写成 `@app.get("/health")` 时，等价于「先调用 `app.get("/health")` 拿到一个**装饰器**，再把下面的函数传进去注册」，框架会把 **HTTP GET** 且路径为 `/health` 的请求交给这个函数。路径字符串里也能写 `{item_id}` 这类占位符，并与函数参数名、类型对应（见下一节）。
+
+---
+
+## 2 路由：路径参数、查询字符串、请求体
+
+```python
+from typing import Annotated
+
+from fastapi import FastAPI, Query
+from pydantic import BaseModel, Field
+
+app = FastAPI()
+
+
+class Item(BaseModel):
+    name: str = Field(min_length=1)
+    price: float = Field(gt=0)
+
+
+@app.get("/items/{item_id}")
+def read_item(
+    item_id: int,
+    q: Annotated[str | None, Query(max_length=50)] = None,
+):
+    return {"item_id": item_id, "q": q}
+
+
+@app.post("/items")
+def create_item(item: Item):
+    return {"received": item.model_dump()}
+```
+
+- **路径参数**：`{item_id}` 与函数参数同名同类型，非法路径会自动 **422**。
+- **查询参数**：可选参数默认来自 query；`Annotated[..., Query(...)]` 可加约束与文档。
+- **JSON Body**：Pydantic `BaseModel` 声明结构与校验规则。
+
+---
+
+## 3 依赖注入：`Depends` 入门
+
+把「取当前用户、打开数据库会话、解析分页」等横切逻辑拆成可复用函数，路由只声明依赖关系。
+
+```python
+from typing import Annotated
+
+from fastapi import Depends, FastAPI
+
+app = FastAPI()
+
+
+def pagination(skip: int = 0, limit: int = 20) -> tuple[int, int]:
+    return skip, limit
+
+
+@app.get("/feed")
+def feed(page: Annotated[tuple[int, int], Depends(pagination)]):
+    skip, limit = page
+    return {"skip": skip, "limit": limit}
+```
+
+依赖可以是 `async def`，会与路由的 async/sync 规则一起由框架调度；复杂场景（数据库会话）建议直接读官方 **Dependencies** 章节。
+
+---
+
+## 4 `async def` 与阻塞代码
+
+- **`async def` 路由**：不要在函数体内长时间 **阻塞**（大量 CPU 计算、`requests.get`、同步磁盘 IO），否则会卡住事件循环。
+- **需要阻塞库**：用 **`def` 同步路由**，FastAPI 会放到线程池执行（适合少量阻塞）；或把重活交给任务队列进程。
+- **向外发起 HTTP**：在 async 路由里优先 **`httpx.AsyncClient`**（见主文档 `httpx` 一节）。
+
+---
+
+## 5 OpenAPI：`/docs` 与 `/redoc`
+
+`FastAPI(...)` 构造时可填 `title`、`version`、`description`；路由上的类型与 `Field`、`Query` 等会进入 schema。默认：
+
+- **Swagger UI**：`/docs`
+- **ReDoc**：`/redoc`
+- **原始 JSON**：`/openapi.json`
+
+---
+
+## 6 uvicorn：常用 CLI 参数
+
+| 参数                                    | 含义                                                        |
+| --------------------------------------- | ----------------------------------------------------------- |
+| `host`                                  | 监听地址；对外服务常用 `0.0.0.0`，仅本机 `127.0.0.1`        |
+| `port`                                  | 端口                                                        |
+| `workers`                               | 进程数（**不能与 `--reload` 共用**）；CPU 型可调多个 worker |
+| `reload`                                | 开发热重载                                                  |
+| `log-level`                             | `debug` / `info` / `warning`                                |
+| `proxy-headers` / `forwarded-allow-ips` | 在反向代理后正确识别 HTTPS / 客户端 IP（按部署文档配置）    |
+
+示例：
+
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
+```
+
+也可在代码里启动（嵌入脚本或测试时偶尔用）：
+
+```python
+import uvicorn
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+```
+
+---
+
+## 7 生产部署：多进程与反向代理
+
+1. **单机多进程**：`uvicorn --workers N`，或 **`gunicorn -k uvicorn.workers.UvicornWorker`**（由 gunicorn 管理 worker，前面再接 Nginx/Caddy 终止 TLS）。
+2. **配置与环境变量**：用 **pydantic-settings** 或自写读取 `os.environ`，勿把密钥写进仓库。
+3. **优雅停机**：进程管理器（systemd、Docker、K8s）发信号时，保证请求收尾；具体超时与 drained 行为依服务器版本与部署而定。
+
+---
+
+## 8 小结检查清单
+
+- [ ] `main:app` 模块路径是否与实际文件名、工作目录一致（避免 `ModuleNotFoundError`）。
+- [ ] 生产是否关闭 `--reload`，worker 数是否与 CPU、阻塞比例匹配。
+- [ ] 是否在反向代理后正确配置 **Forwarded / Proxy** 相关选项（HTTPS 链接、IP 记录）。
+- [ ] async 路由里是否误用了长时间阻塞调用。
+
+**资料**：[FastAPI 中文文档](https://fastapi.tiangolo.com/zh/) · [uvicorn](https://www.uvicorn.org/) · [Starlette](https://www.starlette.io/)

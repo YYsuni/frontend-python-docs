@@ -32,7 +32,13 @@ html {
 		&::before {
 			content: '#';
 			margin-right: 0.5rem;
-			color: #999;
+			color: var(--color-fd-muted-foreground);
 		}
+	}
+
+	blockquote {
+		font-weight: 400;
+		color: var(--color-fd-muted-foreground);
+		font-size: 0.875rem;
 	}
 }
