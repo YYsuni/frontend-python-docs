@@ -1,0 +1,164 @@
+---
+title: WebView
+description: 用 pywebview 在原生窗口里渲染本地或远程页面：最小启动、URL/HTML、与本地 HTTP 服务组合、JS ↔ Python 桥、调试与平台后端心智。
+---
+
+本章面向 **「Python 控制窗口，界面用 HTML/CSS/JS」** 的桌面小工具：比打包整套 Chromium 的方案轻量，心智上接近 **壳 + 系统 WebView**。默认实现基于第三方库 **`pywebview`**（不是标准库）。
+
+---
+
+## 1 安装
+
+```bash
+pip install pywebview
+```
+
+| 平台    | 常见后端（随版本与运行库变化，以官方说明为准）                |
+| ------- | ------------------------------------------------------------- |
+| Windows | Microsoft Edge **WebView2**（需运行时；多数 Win10/11 已具备） |
+| macOS   | **WKWebView**                                                 |
+| Linux   | **GTK/WebKit** 等（发行版需装好对应依赖）                     |
+
+导入约定：
+
+```python
+import webview
+```
+
+---
+
+## 2 最小窗口：远程 URL
+
+```python
+import webview
+
+def main():
+    webview.create_window("Demo", "https://example.com", width=900, height=600)
+    webview.start(debug=True)
+
+if __name__ == "__main__":
+    main()
+```
+
+- **`create_window`**：返回 **`Window`**（初始化被取消时可能为 **`None`**）；可多次调用实现多窗口。完整参数见下表（与 **近期 pywebview** 源码一致；小版本若有增减以 [官方文档](https://pywebview.flowrl.com/) 为准）。
+- **`webview.start(...)`**：进入 GUI **事件循环**，一般放在脚本末尾；**`debug=True`** 便于打开开发者工具（平台支持为前提）。
+
+### `create_window` 参数
+
+**内容与脚本桥**
+
+| 参数     | 类型 / 默认                | 说明                                                                                                                                  |
+| -------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`  | `str`                      | 窗口标题栏文案。                                                                                                                      |
+| `url`    | `str`、可调用对象或 `None` | 加载地址 **`http(s)://` / `file://`**；也可传入 **WSGI / ASGI 应用**，由内置 HTTP 服务承载（见 `server`）。与 `html` 二选一场景常见。 |
+| `html`   | `str` / `None`             | 直接以内嵌 HTML 字符串作为文档；本地静态资源路径需自洽。                                                                              |
+| `js_api` | 任意 / `None`              | 暴露给页面 JS 调用的 **Python API**（对象）；具体绑定方式见官方指南。                                                                 |
+
+**几何与显示器**
+
+| 参数               | 类型 / 默认             | 说明                                                |
+| ------------------ | ----------------------- | --------------------------------------------------- |
+| `width` / `height` | `int`，默认 `800`×`600` | 客户区逻辑尺寸（像素）。                            |
+| `x` / `y`          | `int` / `None`          | 窗口左上角坐标；`None` 通常表示由系统摆放。         |
+| `screen`           | `Screen` / `None`       | 指定显示在哪块 **屏幕**；与坐标配合做多显示器放置。 |
+
+**状态与交互**
+
+| 参数                      | 类型 / 默认               | 说明                                                     |
+| ------------------------- | ------------------------- | -------------------------------------------------------- |
+| `resizable`               | `bool`，默认 `True`       | 是否允许用户拖拽改变窗口大小。                           |
+| `fullscreen`              | `bool`，默认 `False`      | 启动时是否全屏。                                         |
+| `min_size`                | 二元组，默认 `(200, 100)` | 可缩放时的 **最小** 宽高。                               |
+| `hidden`                  | `bool`，默认 `False`      | 是否先隐藏（可用于稍后显示）。                           |
+| `minimized` / `maximized` | `bool`，默认 `False`      | 启动时最小化 / 最大化。                                  |
+| `focus`                   | `bool`，默认 `True`       | 打开时是否抢焦点；`False` 时键盘输入可能仍落到其它窗口。 |
+| `on_top`                  | `bool`，默认 `False`      | 是否置顶；文档注明 **Windows** 等平台上语义更强。        |
+| `confirm_close`           | `bool`，默认 `False`      | 关闭前是否弹出确认对话框。                               |
+
+**外观（无边框、阴影、透明等）**
+
+| 参数               | 类型 / 默认                    | 说明                                                                   |
+| ------------------ | ------------------------------ | ---------------------------------------------------------------------- |
+| `frameless`        | `bool`，默认 `False`           | 无系统标题栏/边框；常与 `easy_drag` 等配合。                           |
+| `easy_drag`        | `bool`，默认 `True`            | 无边框时是否启用 **易于拖拽** 模式（与前端里可拖拽区域一类设定相关）。 |
+| `shadow`           | `bool`，默认 `True`            | 是否绘制窗口阴影/圆角边框等（平台效果不同）。                          |
+| `background_color` | 十六进制字符串，默认 `#FFFFFF` | 页面内容尚未绘出前的 **底色**；格式须为合法 `#RGB` / `#RRGGBB`。       |
+| `transparent`      | `bool`，默认 `False`           | 是否不绘制窗口背景（透明窗口；平台支持为前提）。                       |
+| `text_select`      | `bool`，默认 `False`           | 是否允许在页面上 **选择文本**。                                        |
+| `zoomable`         | `bool`，默认 `False`           | 是否允许缩放内容（平台/后端差异注意）。                                |
+| `draggable`        | `bool`，默认 `False`           | 与拖拽行为相关的开关（与 `settings` 里拖拽区域选择器配合查阅文档）。   |
+| `vibrancy`         | `bool`，默认 `False`           | 毛玻璃等视觉效果（**主要为 macOS** 侧能力）。                          |
+
+**内置 HTTP 与菜单**
+
+| 参数           | 类型 / 默认                     | 说明                                                          |
+| -------------- | ------------------------------- | ------------------------------------------------------------- |
+| `menu`         | 菜单列表，默认 `[]`             | 窗口级菜单（类型为 pywebview 的 **`Menu`** 等，见官方 API）。 |
+| `localization` | 映射 / `None`                   | 覆盖内置本地化字符串。                                        |
+| `server`       | 服务类，默认 **`BottleServer`** | 承载本地 URL / WSGI/ASGI 时使用的 **内置 HTTP 服务**实现。    |
+| `http_port`    | `int` / `None`                  | 为该窗口指定内置服务端口；`None` 则自动分配。                 |
+| `server_args`  | `dict`，默认 `{}`               | 传给服务器构造的额外参数（如 SSL 证书路径等，见官方说明）。   |
+
+---
+
+## 3 本地页面：HTML 字符串或静态文件
+
+```python
+import webview
+
+html = """
+<!doctype html>
+<meta charset="utf-8">
+<title>Hello</title>
+<body>
+  <h1>Hello</h1>
+  <button onclick="alert('ok')">Click</button>
+</body>
+"""
+
+webview.create_window("Local HTML", html=html)
+webview.start()
+```
+
+- **`url`** 指向 **`file://`** 或 **`http(s)://`**；静态资源路径要与页面内引用一致。
+- 复杂前端构建产物（Vite/webpack）通常 **`npm run build`** 后，用 **`http.server`** 或 **FastAPI 挂载静态目录**，再用 **`url='http://127.0.0.1:端口'`** 加载（避免 `file://` 与模块路径一堆坑）。
+
+---
+
+## 4 与本地 ASGI/HTTP 服务组合（常见开发姿势）
+
+1. 在线程或子进程里启动 **uvicorn**（或其它 HTTP 服务），监听 `127.0.0.1` 某端口。
+2. **`webview.create_window(..., url=f"http://127.0.0.1:{port}")`**。
+3. **`webview.start()`** 阻塞；退出窗口后再收尾停服务。
+
+要点：**先等服务就绪再打开 URL**，否则首屏白屏或报错；关闭顺序要防止端口占用。
+
+---
+
+## 5 JS ↔ Python：`js_api`
+
+可将 **一个 Python 对象**暴露给页面里的 JavaScript（具体方法与命名以当前 **`pywebview`** 文档为准），用于：
+
+- 点击按钮调用 Python 侧函数；
+- Python 主动推送结果到前端（需结合窗口实例 API）。
+
+设计时注意：**不要在 GUI 线程里做长时间阻塞**，耗时逻辑放到线程/进程并用回调更新 UI。
+
+---
+
+## 6 线程与异步
+
+- **`webview.start`** 通常在 **主线程**跑循环；后台线程里随意创建窗口不一定安全，遵循官方线程模型说明。
+- **异步 Web 栈**（`asyncio`）与 GUI 循环要结合时，查官方示例（版本差异大，此处不硬编码 API）。
+
+---
+
+## 易错点（排错速记）
+
+- **只 `create_window` 不 `start`**：不会出现窗口。
+- **WebView2 缺失（Windows）**：安装 / 修复 WebView2 运行时；错误信息常在首次启动时给出。
+- **Linux 依赖不全**：症状多为 import 失败或空白窗口；按发行版安装 WebKit/GTK 相关包。
+- **`file://` 与 ES modules / fetch**：浏览器安全策略与路径解析容易踩坑；开发期优先 **本地 HTTP**。
+- **生产分发**：除 Python 依赖外，还要把 **各平台 WebView 运行时**考虑进安装包或文档说明。
+
+**资料**：[pywebview 文档](https://pywebview.flowrl.com/) · [GitHub r0x0r/pywebview](https://github.com/r0x0r/pywebview)
